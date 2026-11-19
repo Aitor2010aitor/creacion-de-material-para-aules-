@@ -182,7 +182,6 @@ h1 em { font-family: 'Fraunces', serif; font-weight: 500; color: var(--coral); l
 .helper-tip { display: flex; gap: 10px; align-items: start; background: var(--pale); color: var(--muted); margin: 18px 0; border-radius: 6px; padding: 11px 12px; font-size: 10px; line-height: 1.45; }
 .helper-tip > span:first-child { color: var(--coral); font-size: 16px; line-height: 13px; }
 .helper-tip strong { color: var(--ink); font-size: 10px; }
-.generate-button { margin-top: 2px; }
 .preview-panel { padding: 28px; background: #f2f4ef; }
 .preview-topline { margin-bottom: 21px; }
 .preview-topline h2 { font-size: 18px; }

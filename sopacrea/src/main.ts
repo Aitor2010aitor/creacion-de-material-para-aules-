@@ -282,7 +282,6 @@ function seedMarkup(): void {
               <div class="difficulty-control"><button data-difficulty="easy">Fácil</button><button data-difficulty="medium" class="is-selected">Medio</button><button data-difficulty="hard">Difícil</button></div>
             </div>
             <div class="helper-tip"><span>✦</span><span><strong>Consejo docente</strong><br />Usa entre 5 y 10 palabras para mantener el ritmo de la actividad.</span></div>
-            <button class="button button-primary generate-button" data-action="generate"><span>✦</span> Regenerar actividad <span class="button-arrow">↗</span></button>
           </aside>
 
           <section class="preview-panel" id="preview-section">
@@ -813,7 +812,7 @@ function autoGenerateNow(): void {
   renderPreview();
 }
 
-function scheduleAutoGenerate(delay = 320): void {
+function scheduleAutoGenerate(delay = 100): void {
   window.clearTimeout(autoGenerateTimer);
   autoGenerateTimer = window.setTimeout(() => {
     const valid = state.entries.filter((entry) => {
@@ -1559,7 +1558,6 @@ function handleAction(action: string, element: HTMLElement): void {
     renderPreview();
     showToast('Vista previa del vídeo actualizada.');
   }
-  if (action === 'generate') generateActivity();
   if (action === 'update-generic') { renderPreview(); showToast('Vista previa actualizada.'); }
   if (action === 'download-selected') downloadSelectedActivity();
   if (action === 'animate-selected') animateSelected();
