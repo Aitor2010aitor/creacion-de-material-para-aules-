@@ -2,6 +2,8 @@
 
 **Creador de actividades H5P para Aules y Moodle.**
 
+**Demo en línea:** [Abrir SopaCrea](https://aitor2010aitor.github.io/creacion-de-material-para-aules-/sopacrea/dist/)
+
 > **Versión 1.1.** La **sopa de letras** y el **crucigrama** ya están disponibles. El resto de formatos aparece en la interfaz como **«en construcción»** y se irá publicando poco a poco.
 
 ## Qué incluye esta versión
