@@ -89,14 +89,13 @@ const dictationState = {
   checked: false,
 };
 
-type FlashcardAudio = { file: File; url: string };
 type FlashcardImage = { file: File; url: string };
-type FlashcardCard = { id: number; text: string; answer: string; image: FlashcardImage | null; audio: FlashcardAudio | null; tipFront: string; tipBack: string };
+type FlashcardCard = { id: number; text: string; answer: string; image: FlashcardImage | null; tipFront: string; tipBack: string };
 
 const flashcardState = {
   cards: [
-    { id: 1, text: '¿Cómo se dice "tree" en español?', answer: 'árbol', image: null, audio: null, tipFront: '', tipBack: '' },
-    { id: 2, text: '¿Cómo se dice "river" en español?', answer: 'río', image: null, audio: null, tipFront: '', tipBack: '' },
+    { id: 1, text: '¿Cómo se dice "tree" en español?', answer: 'árbol', image: null, tipFront: '', tipBack: '' },
+    { id: 2, text: '¿Cómo se dice "river" en español?', answer: 'río', image: null, tipFront: '', tipBack: '' },
   ] as FlashcardCard[],
   nextId: 3,
   flipped: new Set<number>(),
@@ -347,7 +346,6 @@ function renderDictationPreview(): string {
 function renderFlashcardsEditor(): string {
   const items = flashcardState.cards.map((card, index) => {
     const imageName = card.image ? card.image.file.name : '';
-    const audioName = card.audio ? card.audio.file.name : '';
     return `<div class="flashcard-item" data-flashcard-item="${card.id}">
       <div class="flashcard-item-head"><span class="entry-index">${String(index + 1).padStart(2, '0')}</span><strong>Tarjeta ${index + 1}</strong><button class="remove-entry" data-action="remove-flashcard" data-flashcard-id="${card.id}" aria-label="Eliminar tarjeta ${index + 1}">×</button></div>
       <label class="field-label">Pregunta (anverso)<textarea data-flashcard-text="${card.id}" rows="2" maxlength="300" placeholder="Escribe la pregunta o palabra...">${escapeHtml(card.text)}</textarea></label>
@@ -357,11 +355,6 @@ function renderFlashcardsEditor(): string {
         ${card.image ? `<button type="button" class="dictation-clear" data-action="clear-flashcard-image" data-flashcard-id="${card.id}">Quitar</button>` : ''}
       </div>
       ${card.image ? `<img class="flashcard-editor-image" src="${card.image.url}" alt="" />` : ''}
-      <div class="flashcard-file-row">
-        <label class="dictation-file ${card.audio ? 'has-file' : ''}"><span class="dictation-file-icon">${card.audio ? '✓' : '+'}</span><span class="dictation-file-copy"><strong>Audio (opcional)</strong><small>${audioName ? escapeHtml(audioName) : 'MP3, M4A, OGG o WAV'}</small></span><input type="file" accept="audio/*" data-flashcard-audio="${card.id}" /></label>
-        ${card.audio ? `<button type="button" class="dictation-clear" data-action="clear-flashcard-audio" data-flashcard-id="${card.id}">Quitar</button>` : ''}
-      </div>
-      ${card.audio ? `<audio class="dictation-editor-audio" controls preload="metadata" src="${card.audio.url}"></audio>` : ''}
       <div class="flashcard-tips">
         <label class="field-label">Pista anverso (opcional)<input data-flashcard-tipfront="${card.id}" type="text" value="${escapeHtml(card.tipFront)}" maxlength="120" /></label>
         <label class="field-label">Pista reverso (opcional)<input data-flashcard-tipback="${card.id}" type="text" value="${escapeHtml(card.tipBack)}" maxlength="120" /></label>
@@ -372,7 +365,7 @@ function renderFlashcardsEditor(): string {
   return `<div class="generic-editor-card flashcard-editor-card">
     <span class="section-kicker">CREADOR H5P</span>
     <h3>Tarjeta didáctica</h3>
-    <p>Sube una imagen y/o audio por tarjeta y escribe la pregunta y la respuesta.</p>
+    <p>Sube una imagen por tarjeta y escribe la pregunta y la respuesta.</p>
     <label class="field-label">Título de la actividad<input data-flashcard-title type="text" value="${escapeHtml(state.title)}" maxlength="60" /></label>
     <label class="field-label">Instrucciones<textarea data-flashcard-instructions rows="2" maxlength="140">${escapeHtml(state.instructions)}</textarea></label>
     <div class="content-heading"><div><span class="section-kicker">CONTENIDO</span><h3>Tarjetas</h3></div><span class="counter">${flashcardState.cards.length} ${flashcardState.cards.length === 1 ? 'tarjeta' : 'tarjetas'}</span></div>
@@ -389,7 +382,6 @@ function renderFlashcardsPreview(): string {
       <div class="flashcard-face flashcard-front">
         ${card.image ? `<img src="${card.image.url}" alt="" />` : ''}
         <p>${escapeHtml(card.text || 'Pregunta')}</p>
-        ${card.audio ? `<audio controls preload="metadata" src="${card.audio.url}"></audio>` : ''}
         ${card.tipFront ? `<small>${escapeHtml(card.tipFront)}</small>` : ''}
         <button class="button button-ghost" data-action="flip-flashcard" data-flashcard-id="${card.id}">Voltear</button>
       </div>
@@ -1807,23 +1799,22 @@ async function exportOfficialFlashcardsH5P(): Promise<void> {
   const h5p = {
     title: state.title || 'Tarjeta didáctica',
     language: 'es',
-    mainLibrary: 'H5P.Dialogcards',
+    mainLibrary: 'H5P.Flashcards',
     embedTypes: ['iframe'],
     license: 'U',
     preloadedDependencies: [
-      { machineName: 'H5P.Dialogcards', majorVersion: 1, minorVersion: 9 },
+      { machineName: 'H5P.Flashcards', majorVersion: 1, minorVersion: 7 },
       { machineName: 'FontAwesome', majorVersion: 4, minorVersion: 5 },
       { machineName: 'H5P.JoubelUI', majorVersion: 1, minorVersion: 3 },
-      { machineName: 'H5P.Audio', majorVersion: 1, minorVersion: 5 },
+      { machineName: 'H5P.FontIcons', majorVersion: 1, minorVersion: 0 },
     ],
   };
   zipFiles.push({ name: 'h5p.json', data: JSON.stringify(h5p, null, 2) });
 
-  const dialogs = [];
+  const cards = [];
   let imageIndex = 1;
-  let audioIndex = 1;
   for (const card of validCards) {
-    const dialog: Record<string, unknown> = {
+    const cardData: Record<string, unknown> = {
       text: card.text.trim() || ' ',
       answer: card.answer.trim() || ' ',
     };
@@ -1831,29 +1822,38 @@ async function exportOfficialFlashcardsH5P(): Promise<void> {
       const ext = card.image.file.name.split('.').pop()?.toLowerCase() || 'png';
       const name = `image-${imageIndex}.${ext}`;
       zipFiles.push({ name: `content/images/${name}`, data: new Uint8Array(await card.image.file.arrayBuffer()) });
-      dialog.image = { path: `images/${name}`, mime: card.image.file.type || 'image/png', copyright: { license: 'U' } };
+      cardData.image = { path: `images/${name}`, mime: card.image.file.type || 'image/png', copyright: { license: 'U' } };
+      if (card.image.file.name) cardData.imageAltText = card.image.file.name.replace(/\.[^.]+$/, '');
       imageIndex += 1;
     }
-    if (card.audio) {
-      const ext = card.audio.file.name.split('.').pop()?.toLowerCase() || 'mp3';
-      const name = `audio-${audioIndex}.${ext}`;
-      zipFiles.push({ name: `content/audios/${name}`, data: new Uint8Array(await card.audio.file.arrayBuffer()) });
-      const mime = card.audio.file.type || 'audio/mpeg';
-      dialog.audio = { path: `audios/${name}`, mime, copyright: { license: 'U' } };
-      audioIndex += 1;
-    }
     if (card.tipFront.trim() || card.tipBack.trim()) {
-      dialog.tips = { front: card.tipFront.trim(), back: card.tipBack.trim() };
+      cardData.tip = { tip: card.tipFront.trim() || card.tipBack.trim() };
     }
-    dialogs.push(dialog);
+    cards.push(cardData);
   }
 
   const content = {
-    title: state.title || 'Tarjeta didáctica',
-    mode: 'normal',
     description: state.instructions || '',
-    dialogs,
-    behaviour: {},
+    cards,
+    progressText: 'Tarjeta @card de @total',
+    next: 'Siguiente',
+    previous: 'Anterior',
+    checkAnswerText: 'Comprobar',
+    showSolutionsRequiresInput: true,
+    defaultAnswerText: 'Escribe tu respuesta aquí',
+    correctAnswerText: '¡Correcto!',
+    incorrectAnswerText: 'Incorrecto',
+    showSolutionText: 'Mostrar solución',
+    results: 'Resultados',
+    ofCorrect: '@score de @total correctas',
+    showResults: 'Mostrar resultados',
+    answerShortText: 'R:',
+    retry: 'Reintentar',
+    caseSensitive: false,
+    cardAnnouncement: 'Tarjeta @card de @total',
+    correctAnswerAnnouncement: 'La respuesta correcta era @answer',
+    pageAnnouncement: 'Página @page de @total',
+    randomCards: false,
   };
   zipFiles.push({ name: 'content/content.json', data: JSON.stringify(content, null, 2) });
 
@@ -2009,7 +2009,7 @@ function handleAction(action: string, element: HTMLElement): void {
   }
   if (action === 'add-flashcard') {
     const id = flashcardState.nextId++;
-    flashcardState.cards.push({ id, text: '', answer: '', image: null, audio: null, tipFront: '', tipBack: '' });
+    flashcardState.cards.push({ id, text: '', answer: '', image: null, tipFront: '', tipBack: '' });
     syncCatalogMode();
     renderPreview();
     showToast('Tarjeta añadida.');
@@ -2019,7 +2019,7 @@ function handleAction(action: string, element: HTMLElement): void {
     flashcardState.cards = flashcardState.cards.filter((card) => card.id !== id);
     if (!flashcardState.cards.length) {
       const nid = flashcardState.nextId++;
-      flashcardState.cards.push({ id: nid, text: '', answer: '', image: null, audio: null, tipFront: '', tipBack: '' });
+      flashcardState.cards.push({ id: nid, text: '', answer: '', image: null, tipFront: '', tipBack: '' });
     }
     syncCatalogMode();
     renderPreview();
@@ -2028,13 +2028,6 @@ function handleAction(action: string, element: HTMLElement): void {
     const id = Number(element.dataset.flashcardId);
     const card = flashcardState.cards.find((c) => c.id === id);
     if (card?.image) { URL.revokeObjectURL(card.image.url); card.image = null; }
-    syncCatalogMode();
-    renderPreview();
-  }
-  if (action === 'clear-flashcard-audio') {
-    const id = Number(element.dataset.flashcardId);
-    const card = flashcardState.cards.find((c) => c.id === id);
-    if (card?.audio) { URL.revokeObjectURL(card.audio.url); card.audio = null; }
     syncCatalogMode();
     renderPreview();
   }
@@ -2361,20 +2354,6 @@ function bindEvents(): void {
       if (card) {
         if (card.image) URL.revokeObjectURL(card.image.url);
         card.image = { file, url: URL.createObjectURL(file) };
-        syncCatalogMode();
-        renderPreview();
-      }
-    }
-    if (target.matches('[data-flashcard-audio]')) {
-      const input = target as HTMLInputElement;
-      const file = input.files?.[0];
-      if (!file) return;
-      if (file.type && !file.type.startsWith('audio/')) { showToast('El archivo debe ser de audio (MP3, M4A, OGG o WAV).', 'error'); input.value = ''; return; }
-      if (file.size > 25 * 1024 * 1024) { showToast('El audio supera los 25 MB.', 'error'); input.value = ''; return; }
-      const card = flashcardState.cards.find((item) => item.id === Number(input.dataset.flashcardAudio));
-      if (card) {
-        if (card.audio) URL.revokeObjectURL(card.audio.url);
-        card.audio = { file, url: URL.createObjectURL(file) };
         syncCatalogMode();
         renderPreview();
       }
