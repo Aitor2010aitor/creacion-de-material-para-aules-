@@ -1663,6 +1663,7 @@ function bindEvents(): void {
       syncCatalogMode();
       renderEntries();
       generateActivity(false);
+      document.querySelector('.workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     const catalogCard = target.closest<HTMLButtonElement>('[data-h5p-id]');
     if (catalogCard?.dataset.h5pId && !catalogCard.disabled) {
