@@ -116,7 +116,7 @@ function renderCatalog(): void {
     <div class="catalog-selected"><div><span class="section-kicker">TIPO SELECCIONADO</span><h3><span class="selected-type-icon">${h5pGroupIcons[selected.group]}</span>${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><small>${escapeHtml(selected.fields)}</small></div><div class="catalog-selected-actions"><button class="button button-dark" data-action="download-selected"><span class="icon">↓</span> ${isNativeEditor() ? 'Descargar .h5p para Aules' : 'Descargar borrador'}</button><button class="button button-ghost" data-action="animate-selected"><span class="icon">✦</span> Animar</button><a class="button button-ghost catalog-demo" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial ↗</a></div></div>
     <div class="catalog-toolbar"><label class="catalog-search"><span>⌕</span><input data-catalog-search type="search" value="${escapeHtml(catalogQuery)}" placeholder="Buscar entre 54 tipos H5P..." /></label><select data-catalog-group class="select-input"><option value="all">Todos los tipos</option>${Object.entries(h5pGroupLabels).map(([key, label]) => `<option value="${key}" ${catalogGroup === key ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
     <div class="catalog-grid">${filtered.map((item) => `<button class="catalog-card ${item.id === selectedH5PId ? 'is-selected' : ''} ${item.status === 'construction' ? 'is-construction' : ''}" data-h5p-id="${item.id}" ${item.status === 'construction' ? 'disabled aria-disabled="true" title="En construcción"' : ''}><span class="catalog-card-top"><span class="catalog-type-icon type-${item.group}">${h5pGroupIcons[item.group]}</span><span>${h5pGroupLabels[item.group]}</span><span class="catalog-arrow">${item.status === 'construction' ? '⏳' : '↗'}</span></span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small><span class="catalog-status ${item.status === 'construction' ? 'is-construction' : 'is-ready'}">${item.status === 'construction' ? 'EN CONSTRUCCIÓN' : 'DISPONIBLE'}</span></button>`).join('')}</div>
-    <p class="catalog-count">Mostrando ${filtered.length} de ${h5pCatalog.length} tipos · Solo la sopa de letras está disponible; el resto se irá publicando poco a poco.</p>`;
+    <p class="catalog-count">Mostrando ${filtered.length} de ${h5pCatalog.length} tipos · ${h5pCatalog.filter((item) => item.status === 'ready').length} disponibles; el resto se irá publicando poco a poco.</p>`;
 }
 
 function isWordActivity(): boolean {
@@ -227,7 +227,7 @@ function seedMarkup(): void {
           <div class="hero-copy">
             <div class="eyebrow"><span class="sparkle">✦</span> Creador de actividades H5P</div>
             <h1>Crea actividades<br /><em>que despiertan</em> curiosidad.</h1>
-            <p class="hero-text">Diseña sopas de letras listas para Aules. Pronto llegarán más formatos: el resto de la biblioteca está en construcción.</p>
+            <p class="hero-text">Diseña sopas de letras y crucigramas listos para Aules. Pronto llegarán más formatos: el resto de la biblioteca está en construcción.</p>
           </div>
           <div class="hero-note">
             <div class="note-line"><span class="note-number">01</span><span>Elige tu formato</span></div>
@@ -238,11 +238,11 @@ function seedMarkup(): void {
 
         <div class="mode-switcher" role="tablist" aria-label="Tipo de actividad">
           <button class="mode-tab is-active" data-mode="wordsearch" role="tab"><span class="tab-icon">⌕</span><span><strong>Sopa de letras</strong><small>Disponible · exporta para Aules</small></span><span class="tab-arrow">↗</span></button>
-          <button class="mode-tab is-construction" data-mode="crossword" role="tab" disabled aria-disabled="true" title="En construcción"><span class="tab-icon tab-icon-cross">＋</span><span><strong>Crucigrama</strong><small>En construcción</small></span><span class="tab-status">PRONTO</span></button>
+          <button class="mode-tab" data-mode="crossword" role="tab"><span class="tab-icon tab-icon-cross">＋</span><span><strong>Crucigrama</strong><small>Resuelve con pistas</small></span><span class="tab-arrow">↗</span></button>
         </div>
 
         <section class="catalog-section">
-          <div class="catalog-heading"><div><span class="section-kicker">BIBLIOTECA H5P</span><h2>Explora los 54 tipos oficiales</h2><p>La sopa de letras ya está disponible. El resto de formatos está en construcción.</p></div><span class="catalog-badge">1 disponible · 53 en construcción</span></div>
+          <div class="catalog-heading"><div><span class="section-kicker">BIBLIOTECA H5P</span><h2>Explora los 54 tipos oficiales</h2><p>La sopa de letras y el crucigrama ya están disponibles. El resto de formatos está en construcción.</p></div><span class="catalog-badge">2 disponibles · 52 en construcción</span></div>
           <div data-h5p-catalog></div>
         </section>
 

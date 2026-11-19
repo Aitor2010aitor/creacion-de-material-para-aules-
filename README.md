@@ -2,18 +2,24 @@
 
 **Creador de actividades H5P para Aules y Moodle.**
 
-> **Versión 1.0 — primera publicación.** La **sopa de letras** ya está disponible y probada en Aules. El resto de formatos aparece en la interfaz como **«en construcción»** y se irá publicando poco a poco.
+> **Versión 1.1.** La **sopa de letras** y el **crucigrama** ya están disponibles. El resto de formatos aparece en la interfaz como **«en construcción»** y se irá publicando poco a poco.
 
 ## Qué incluye esta versión
 
 - Editor de **sopa de letras**: título, instrucciones, palabras, pistas, tamaño de cuadrícula y dificultad.
-- Vista previa interactiva para resolver la sopa antes de exportarla.
-- Exportación a **`.h5p` compatible con Aules** usando la librería oficial `H5P.FindTheWords` 1.4 que Aules ya tiene instalada.
-- Paquete de ejemplo listo para subir: [`entregables/descubrelanaturaleza-sopa.h5p`](entregables/descubrelanaturaleza-sopa.h5p).
+- Editor de **crucigrama**: palabras con pistas, cuadrícula interactiva, comprobar, mostrar solución y reiniciar.
+- Vista previa interactiva para resolver la actividad antes de exportarla.
+- Exportación a **`.h5p` compatible con Aules** usando librerías oficiales que la plataforma ya tiene instaladas, sin añadir bibliotecas propias.
+- Paquetes de ejemplo listos para subir:
+  - [`entregables/descubrelanaturaleza-sopa.h5p`](entregables/descubrelanaturaleza-sopa.h5p)
+  - [`entregables/descubrelanaturaleza-crucigrama.h5p`](entregables/descubrelanaturaleza-crucigrama.h5p)
 
 ### Por qué funciona en Aules
 
-Aules no permite instalar librerías H5P nuevas. Los paquetes de SopaCrea son **solo contenido** (`h5p.json` + `content/content.json`) y declaran `H5P.FindTheWords` como librería principal, por lo que no incluyen ni instalan bibliotecas propias.
+Aules no permite instalar librerías H5P nuevas. Los paquetes de SopaCrea son **solo contenido** (`h5p.json` + `content/content.json`), por lo que no incluyen ni instalan bibliotecas propias:
+
+- **Sopa de letras:** usa `H5P.FindTheWords` 1.4, ya probada en Aules.
+- **Crucigrama:** usa `H5P.Crossword` 0.5, probada en Moodle local. En Aules funcionará si esa librería oficial está instalada en la plataforma.
 
 ## Cómo usar la aplicación
 
@@ -38,7 +44,7 @@ También puedes abrir `sopacrea/dist/index.html` desde un servidor estático. La
 
 ## Cómo subir la actividad a Aules
 
-1. Genera la sopa de letras en SopaCrea.
+1. Genera la actividad en SopaCrea (sopa de letras o crucigrama).
 2. Pulsa **Descargar .h5p para Aules**.
 3. En Aules entra en el curso y elige **Añadir contenido → H5P → Paquete de archivos**.
 4. Sube el archivo `.h5p` descargado.
@@ -47,27 +53,28 @@ También puedes abrir `sopacrea/dist/index.html` desde un servidor estático. La
 
 | Formato | Estado |
 | --- | --- |
-| Sopa de letras | ✅ Disponible y compatible con Aules |
-| Crucigrama | 🚧 En construcción (editor y exportación ya existen, pendiente de validación final) |
+| Sopa de letras | ✅ Disponible y probada en Aules |
+| Crucigrama | ✅ Disponible (probado en Moodle local; pendiente de confirmar en Aules) |
 | Vídeo interactivo | 🚧 En construcción |
 | Resto del catálogo H5P (51 tipos) | 🚧 En construcción |
 
-La biblioteca muestra los **54 tipos oficiales** de H5P para consultar sus demos, pero solo la sopa de letras se puede crear y descargar en esta versión.
+La biblioteca muestra los **54 tipos oficiales** de H5P para consultar sus demos, pero solo la sopa de letras y el crucigrama se pueden crear y descargar en esta versión.
 
 ## Estructura del repositorio
 
 ```text
 .
 ├── entregables/
-│   └── descubrelanaturaleza-sopa.h5p   # Paquete de ejemplo listo para Aules
+│   ├── descubrelanaturaleza-sopa.h5p        # Ejemplo de sopa de letras para Aules
+│   └── descubrelanaturaleza-crucigrama.h5p  # Ejemplo de crucigrama para Aules
 ├── sopacrea/
-│   ├── src/                            # Código fuente (TypeScript + CSS)
+│   ├── src/                                 # Código fuente (TypeScript + CSS)
 │   ├── public/
-│   ├── dist/                           # Build lista para servir
+│   ├── dist/                                # Build lista para servir
 │   ├── index.html
 │   ├── package.json
 │   ├── pnpm-lock.yaml
-│   ├── serve-dist.cjs                  # Servidor estático sin dependencias
+│   ├── serve-dist.cjs                       # Servidor estático sin dependencias
 │   └── vite.config.ts
 └── README.md
 ```
@@ -85,7 +92,7 @@ El código principal está en `sopacrea/src/main.ts`, el catálogo en `sopacrea/
 
 ## Hoja de ruta
 
-- Validar y publicar el crucigrama.
+- Confirmar el crucigrama en Aules.
 - Adaptar el vídeo interactivo a la librería oficial `H5P.InteractiveVideo`.
 - Ir habilitando el resto de tipos del catálogo con exportación content-only compatible con Aules.
 
