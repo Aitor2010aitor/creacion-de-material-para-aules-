@@ -1,7 +1,7 @@
 import './style.css';
 import { h5pCatalog, h5pGroupLabels, type H5PGroup } from './h5pCatalog';
 
-type Mode = 'wordsearch' | 'crossword' | 'dictation' | 'flashcards';
+type Mode = 'wordsearch' | 'crossword' | 'dictation' | 'flashcards' | 'quiz';
 type Difficulty = 'easy' | 'medium' | 'hard';
 
 type Entry = {
@@ -100,6 +100,15 @@ const flashcardState = {
   nextId: 3,
   flipped: new Set<number>(),
 };
+type QuizAnswer = { id: number; text: string; correct: boolean };
+type QuizQuestion = { id: number; question: string; answers: QuizAnswer[]; nextAnswerId: number };
+const quizState = {
+  questions: [
+    { id: 1, question: '¿Cuál es la capital de España?', answers: [ { id: 1, text: 'Madrid', correct: true }, { id: 2, text: 'Barcelona', correct: false }, { id: 3, text: 'Sevilla', correct: false } ], nextAnswerId: 4 },
+    { id: 2, question: '¿Cuántos continentes hay?', answers: [ { id: 1, text: '5', correct: false }, { id: 2, text: '6', correct: false }, { id: 3, text: '7', correct: true } ], nextAnswerId: 4 },
+  ] as QuizQuestion[],
+  nextId: 3,
+};
 
 const normalizeDictation = (value: string): string => value
   .toLocaleLowerCase('es-ES')
@@ -153,6 +162,7 @@ const defaultInstructions: Record<Mode, string> = {
   crossword: 'Resuelve el crucigrama con las pistas.',
   dictation: 'Escucha cada audio con atención y escribe la frase que oyes.',
   flashcards: 'Lee la pregunta, intenta responder y voltea la tarjeta para comprobar.',
+  quiz: 'Lee cada pregunta y selecciona la respuesta correcta.',
 };
 const h5pGroupIcons: Record<H5PGroup, string> = { quiz: '☑', presentation: '▤', game: '♞', multimedia: '◉', writing: '✎', survey: '☷', other: '◆' };
 
@@ -177,7 +187,7 @@ function isWordActivity(): boolean {
 }
 
 function isNativeEditor(): boolean {
-  return isWordActivity() || selectedH5PId === 'interactive-video' || selectedH5PId === 'dictation' || selectedH5PId === 'flashcards';
+  return isWordActivity() || selectedH5PId === 'interactive-video' || selectedH5PId === 'dictation' || selectedH5PId === 'flashcards' || selectedH5PId === 'quiz-question-set';
 }
 
 function syncCatalogMode(): void {
@@ -191,7 +201,25 @@ function syncCatalogMode(): void {
   const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
   if (instructionsInput && instructionsInput.value !== state.instructions) instructionsInput.value = state.instructions;
   editor.classList.toggle('is-catalog-mode', !native);
-  generic.innerHTML = native ? '' : selectedH5PId === 'interactive-video' ? renderVideoEditor() : selectedH5PId === 'dictation' ? renderDictationEditor() : selectedH5PId === 'flashcards' ? renderFlashcardsEditor() : `<div class="generic-editor-card"><span class="section-kicker">CREADOR H5P</span><h3>Crear ${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><label class="field-label">Título de la actividad<input data-generic-title type="text" value="${escapeHtml(state.title)}" /></label><label class="field-label">Contenido principal<textarea data-generic-content rows="5" placeholder="Escribe aquí el contenido de tu actividad...">${escapeHtml(genericContent)}</textarea></label><label class="field-label">Instrucciones para el alumnado<textarea data-generic-instructions rows="3" placeholder="Explica qué debe hacer el alumnado...">${escapeHtml(genericSettings.instructions)}</textarea></label><div class="generic-config-grid"><label class="field-label">Dificultad<select data-generic-difficulty><option value="facil" ${genericSettings.difficulty === 'facil' ? 'selected' : ''}>Fácil</option><option value="media" ${genericSettings.difficulty === 'media' ? 'selected' : ''}>Media</option><option value="dificil" ${genericSettings.difficulty === 'dificil' ? 'selected' : ''}>Difícil</option></select></label><label class="field-label">Tiempo (minutos)<input data-generic-time type="number" min="0" value="${genericSettings.time}" /></label></div><div class="generic-checks"><label><input data-generic-score type="checkbox" ${genericSettings.showScore ? 'checked' : ''} /> Mostrar puntuación</label><label><input data-generic-random type="checkbox" ${genericSettings.randomize ? 'checked' : ''} /> Orden aleatorio</label></div><label class="field-label">Vídeo, imagen o recurso (URL)<input data-generic-media type="url" value="${escapeHtml(genericSettings.mediaUrl)}" placeholder="https://..." /></label><div class="generic-fields"><strong>Campos principales de este formato</strong><span>${escapeHtml(selected.fields)}</span></div><div class="generic-editor-actions"><button class="button button-dark" data-action="generate-generic"><span class="icon">✦</span> Generar actividad</button><button class="button button-ghost" data-action="download-selected"><span class="icon">↓</span> Descargar borrador</button><a class="button button-ghost" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial</a></div><small>La configuración se guarda en el borrador y se refleja en la vista previa. La exportación específica H5P se implementa por formato.</small></div>`;
+  generic.innerHTML = native ? '' : selectedH5PId === 'interactive-video' ? renderVideoEditor() : selectedH5PId === 'dictation' ? renderDictationEditor() : selectedH5PId === 'flashcards' ? renderFlashcardsEditor() : selectedH5PId === 'quiz-question-set' ? renderQuizEditor() : `<div class="generic-editor-card"><span class="section-kicker">CREADOR H5P</span><h3>Crear ${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><label class="field-label">Título de la actividad<input data-generic-title type="text" value="${escapeHtml(state.title)}" /></label><label class="field-label">Contenido principal<textarea data-generic-content rows="5" placeholder="Escribe aquí el contenido de tu actividad...">${escapeHtml(genericContent)}</textarea></label><label class="field-label">Instrucciones para el alumnado<textarea data-generic-instructions rows="3" placeholder="Explica qué debe hacer el alumnado...">${escapeHtml(genericSettings.instructions)}</textarea></label><div class="generic-config-grid"><label class="field-label">Dificultad<select data-generic-difficulty><option value="facil" ${genericSettings.difficulty === 'facil' ? 'selected' : ''}>Fácil</option><option value="media" ${genericSettings.difficulty === 'media' ? 'selected' : ''}>Media</option><option value="dificil" ${genericSettings.difficulty === 'dificil' ? 'selected' : ''}>Difícil</option></select></label><label class="field-label">Tiempo (minutos)<input data-generic-time type="number" min="0" value="${genericSettings.time}" /></label></div><div class="generic-checks"><label><input data-generic-score type="checkbox" ${genericSettings.showScore ? 'checked' : ''} /> Mostrar puntuación</label><label><input data-generic-random type="checkbox" ${genericSettings.randomize ? 'checked' : ''} /> Orden aleatorio</label></div><label class="field-label">Vídeo, imagen o recurso (URL)<input data-generic-media type="url" value="${escapeHtml(genericSettings.mediaUrl)}" placeholder="https://..." /></label><div class="generic-fields"><strong>Campos principales de este formato</strong><span>${escapeHtml(selected.fields)}</span></div><div class="generic-editor-actions"><button class="button button-dark" data-action="generate-generic"><span class="icon">✦</span> Generar actividad</button><button class="button button-ghost" data-action="download-selected"><span class="icon">↓</span> Descargar borrador</button><a class="button button-ghost" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial</a></div><small>La configuración se guarda en el borrador y se refleja en la vista previa. La exportación específica H5P se implementa por formato.</small></div>`;
+}
+function syncQuizInputs(): void {
+  document.querySelectorAll<HTMLInputElement>('[data-quiz-title]').forEach((el) => { state.title = el.value; });
+  document.querySelectorAll<HTMLTextAreaElement>('[data-quiz-instructions]').forEach((el) => { state.instructions = el.value; });
+  document.querySelectorAll<HTMLTextAreaElement>('[data-quiz-question]').forEach((el) => {
+    const q = quizState.questions.find((item) => item.id === Number(el.dataset.quizQuestion));
+    if (q) q.question = el.value;
+  });
+  document.querySelectorAll<HTMLInputElement>('[data-quiz-answer-text]').forEach((el) => {
+    const q = quizState.questions.find((item) => item.id === Number(el.dataset.quizAnswerText));
+    const a = q?.answers.find((x) => x.id === Number(el.dataset.quizAnswerId));
+    if (a) a.text = el.value;
+  });
+  document.querySelectorAll<HTMLInputElement>('[data-quiz-answer-correct]').forEach((el) => {
+    const q = quizState.questions.find((item) => item.id === Number(el.dataset.quizAnswerCorrect));
+    const a = q?.answers.find((x) => x.id === Number(el.dataset.quizAnswerId));
+    if (a) a.correct = el.checked;
+  });
 }
 
 function renderGenericPreview(): string {
@@ -402,6 +430,53 @@ function renderFlashcardsPreview(): string {
     </div>
   </div>`;
 }
+function renderQuizEditor(): string {
+  const items = quizState.questions.map((q, qi) => {
+    const answers = q.answers.map((a) => `
+      <div class="quiz-answer-row">
+        <input data-quiz-answer-text="${q.id}" data-quiz-answer-id="${a.id}" type="text" value="${escapeHtml(a.text)}" placeholder="Respuesta..." />
+        <label class="quiz-correct"><input data-quiz-answer-correct="${q.id}" data-quiz-answer-id="${a.id}" type="checkbox" ${a.correct ? 'checked' : ''} /> Correcta</label>
+        <button class="remove-entry" data-action="remove-quiz-answer" data-quiz-qid="${q.id}" data-quiz-aid="${a.id}" aria-label="Eliminar respuesta">×</button>
+      </div>`).join('');
+    return `<div class="quiz-question" data-quiz-q="${q.id}">
+      <div class="flashcard-item-head"><span class="entry-index">${String(qi + 1).padStart(2, '0')}</span><strong>Pregunta ${qi + 1}</strong><button class="remove-entry" data-action="remove-quiz-question" data-quiz-qid="${q.id}" aria-label="Eliminar pregunta">×</button></div>
+      <label class="field-label">Pregunta<textarea data-quiz-question="${q.id}" rows="2" maxlength="300" placeholder="Escribe la pregunta...">${escapeHtml(q.question)}</textarea></label>
+      <div class="quiz-answers">${answers}</div>
+      <button class="add-entry" data-action="add-quiz-answer" data-quiz-qid="${q.id}"><span>+</span> Añadir respuesta</button>
+    </div>`;
+  }).join('');
+
+  return `<div class="generic-editor-card quiz-editor-card">
+    <span class="section-kicker">CREADOR H5P</span>
+    <h3>Cuestionario</h3>
+    <p>Añade preguntas de opción múltiple con varias respuestas.</p>
+    <label class="field-label">Título de la actividad<input data-quiz-title type="text" value="${escapeHtml(state.title)}" maxlength="60" /></label>
+    <label class="field-label">Instrucciones<textarea data-quiz-instructions rows="2" maxlength="140">${escapeHtml(state.instructions)}</textarea></label>
+    <div class="content-heading"><div><span class="section-kicker">CONTENIDO</span><h3>Preguntas</h3></div><span class="counter">${quizState.questions.length} ${quizState.questions.length === 1 ? 'pregunta' : 'preguntas'}</span></div>
+    ${items}
+    <button class="add-entry" data-action="add-quiz-question"><span>+</span> Añadir pregunta</button>
+    <div class="generic-editor-actions"><button class="button button-dark" data-action="update-quiz"><span class="icon">↻</span> Actualizar vista previa</button></div>
+  </div>`;
+}
+
+function renderQuizPreview(): string {
+  const items = quizState.questions.map((q, qi) => {
+    const opts = q.answers.map((a) => `<label class="quiz-option"><input type="radio" name="quiz-q-${q.id}" /> ${escapeHtml(a.text)}</label>`).join('');
+    return `<div class="quiz-preview-q">
+      <p><strong>${qi + 1}. ${escapeHtml(q.question || 'Pregunta')}</strong></p>
+      <div class="quiz-preview-opts">${opts}</div>
+    </div>`;
+  }).join('');
+  return `<div class="generic-preview quiz-preview">
+    <div class="preview-header"><div class="preview-label"><span class="preview-icon">?</span> CUESTIONARIO</div><span class="preview-number">VISTA PREVIA</span></div>
+    <div class="generic-preview-body">
+      <span class="section-kicker">ACTIVIDAD CREADA</span>
+      <h3>${escapeHtml(state.title || 'Cuestionario')}</h3>
+      <p>${escapeHtml(state.instructions || 'Responde las preguntas.')}</p>
+      <div class="quiz-preview-list">${items || '<p class="video-empty">Añade preguntas para verlas aquí.</p>'}</div>
+    </div>
+  </div>`;
+}
 
 function seedMarkup(): void {
   document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -438,6 +513,8 @@ function seedMarkup(): void {
           <button class="mode-tab" data-mode="crossword" role="tab"><span class="tab-icon tab-icon-cross">＋</span><span><strong>Crucigrama</strong><small>Resuelve con pistas</small></span><span class="tab-arrow">↗</span></button>
           <button class="mode-tab" data-mode="dictation" role="tab"><span class="tab-icon">♫</span><span><strong>Dictado</strong><small>Escucha, escribe y corrige</small></span><span class="tab-arrow">↗</span></button>
           <button class="mode-tab" data-mode="flashcards" role="tab"><span class="tab-icon">TD</span><span><strong>Tarjeta didáctica</strong><small>Palabra, imagen y audio</small></span><span class="tab-arrow">→</span></button>
+          <button class="mode-tab" data-mode="quiz" role="tab"><span class="tab-icon">?</span><span><strong>Cuestionario</strong><small>Preguntas y respuestas</small></span><span class="tab-arrow">→</span></button>
+          <button class="mode-tab" data-mode="quiz" role="tab"><span class="tab-icon">?</span><span><strong>Cuestionario</strong><small>Preguntas y respuestas</small></span><span class="tab-arrow">→</span></button>
         </div>
 
         <section class="catalog-section">
@@ -882,6 +959,7 @@ function renderPreview(): void {
   if (selectedH5PId === 'interactive-video') preview.innerHTML = renderVideoPreview();
   else if (selectedH5PId === 'dictation') preview.innerHTML = renderDictationPreview();
   else if (selectedH5PId === 'flashcards') preview.innerHTML = renderFlashcardsPreview();
+  else if (selectedH5PId === 'quiz-question-set') preview.innerHTML = renderQuizPreview();
   else if (!isNativeEditor()) preview.innerHTML = renderGenericPreview();
   else preview.innerHTML = state.mode === 'wordsearch' ? renderWordSearchPreview() : renderCrosswordPreview();
 }
@@ -1863,11 +1941,109 @@ async function exportOfficialFlashcardsH5P(): Promise<void> {
   downloadBlob(blob, `${slug}-tarjeta-didactica-aules.h5p`);
   showToast('Tarjeta didáctica descargada.');
 }
+async function exportOfficialQuizH5P(): Promise<void> {
+  const validQuestions = quizState.questions.filter((q) => q.question.trim() && q.answers.some((a) => a.text.trim()));
+  if (!validQuestions.length) {
+    showToast('Añade al menos una pregunta con respuestas.', 'error');
+    return;
+  }
+
+  const questions = validQuestions.map((q) => {
+    const validAnswers = q.answers.filter((a) => a.text.trim());
+    const answers = validAnswers.map((a) => ({
+      text: a.text.trim(),
+      correct: a.correct,
+      tipsAndFeedback: { tip: '', chosenFeedback: '', notChosenFeedback: '' },
+    }));
+    if (!answers.some((a) => a.correct)) {
+      if (answers.length) answers[0].correct = true;
+    }
+    const params = {
+      media: { type: {} },
+      question: q.question.trim(),
+      answers,
+      overallFeedback: [{ from: 0, to: 100, feedback: '' }],
+      UI: {
+        checkAnswerButton: 'Comprobar',
+        showSolutionButton: 'Mostrar solución',
+        tryAgainButton: 'Reintentar',
+      },
+      behaviour: {
+        enableRetry: true,
+        enableSolutionsButton: true,
+        singleAnswer: true,
+      },
+    };
+    return {
+      subContentId: crypto.randomUUID(),
+      library: 'H5P.MultiChoice 1.16',
+      params,
+      metadata: { title: q.question.trim().slice(0, 60) || 'Pregunta', license: 'U' },
+    };
+  });
+
+  const h5p = {
+    title: state.title || 'Cuestionario',
+    language: 'es',
+    mainLibrary: 'H5P.QuestionSet',
+    embedTypes: ['iframe'],
+    license: 'U',
+    preloadedDependencies: [
+      { machineName: 'H5P.QuestionSet', majorVersion: 1, minorVersion: 20 },
+      { machineName: 'FontAwesome', majorVersion: 4, minorVersion: 5 },
+      { machineName: 'H5P.Video', majorVersion: 1, minorVersion: 6 },
+      { machineName: 'H5P.JoubelUI', majorVersion: 1, minorVersion: 3 },
+    ],
+  };
+
+  const content = {
+    introPage: { title: state.title || 'Cuestionario', introduction: state.instructions || '' },
+    progressType: 'dots',
+    passPercentage: 50,
+    questions,
+    texts: {
+      prevButton: 'Anterior',
+      nextButton: 'Siguiente',
+      finishButton: 'Finalizar',
+      submitButton: 'Enviar',
+      textualProgress: 'Pregunta @current de @total',
+      jumpToQuestion: 'Pregunta %d de %total',
+      questionLabel: 'Pregunta',
+      readSpeakerProgress: 'Pregunta @current de @total',
+      unansweredText: 'Sin responder',
+      answeredText: 'Respondida',
+      currentQuestionText: 'Pregunta actual',
+      navigationLabel: 'Preguntas',
+    },
+    disableBackwardsNavigation: false,
+    randomQuestions: false,
+    endGame: {
+      showResultPage: true,
+      showSolutionButton: true,
+      showRetryButton: true,
+      noResultMessage: 'Has completado todas las preguntas.',
+      message: 'Has respondido @score de @total preguntas correctamente.',
+      successMessage: '¡Excelente!',
+      scoreBarLabel: 'Has obtenido @score de @total puntos',
+    },
+    override: { showSolutionButton: true, retryButton: true },
+  };
+
+  const zipFiles: Array<{ name: string; data: string | Uint8Array }> = [];
+  zipFiles.push({ name: 'h5p.json', data: JSON.stringify(h5p, null, 2) });
+  zipFiles.push({ name: 'content/content.json', data: JSON.stringify(content, null, 2) });
+  const blob = createZip(zipFiles);
+  const slug = normalize(state.title).toLowerCase().replaceAll(' ', '-') || 'cuestionario';
+  downloadBlob(blob, `${slug}-cuestionario-aules.h5p`);
+  showToast('Cuestionario descargado.');
+}
+
 function exportH5P(): void {
   if (!isNativeEditor()) { showToast('Este tipo H5P está seleccionado como plantilla. Abre su demo para construirlo.', 'error'); return; }
   if (selectedH5PId === 'interactive-video') { exportInteractiveVideoH5P(); return; }
   if (selectedH5PId === 'dictation') { void exportOfficialDictationH5P(); return; }
   if (selectedH5PId === 'flashcards') { void exportOfficialFlashcardsH5P(); return; }
+  if (selectedH5PId === 'quiz-question-set') { void exportOfficialQuizH5P(); return; }
   if (!showValidation()) return;
   if (state.mode === 'wordsearch') { exportOfficialWordSearchH5P(); return; }
   exportOfficialCrosswordH5P();
@@ -2007,6 +2183,46 @@ function handleAction(action: string, element: HTMLElement): void {
   if (action === 'update-flashcards') {
     renderPreview();
     showToast('Vista previa de las tarjetas actualizada.');
+  }
+  if (action === 'update-quiz') {
+    syncQuizInputs();
+    renderPreview();
+    showToast('Vista previa del cuestionario actualizada.');
+  }
+  if (action === 'add-quiz-question') {
+    const id = quizState.nextId++;
+    quizState.questions.push({ id, question: '', answers: [ { id: 1, text: '', correct: false }, { id: 2, text: '', correct: false } ], nextAnswerId: 3 });
+    syncCatalogMode();
+    renderPreview();
+  }
+  if (action === 'remove-quiz-question') {
+    const id = Number(element.dataset.quizQid);
+    quizState.questions = quizState.questions.filter((q) => q.id !== id);
+    if (!quizState.questions.length) {
+      const nid = quizState.nextId++;
+      quizState.questions.push({ id: nid, question: '', answers: [ { id: 1, text: '', correct: false }, { id: 2, text: '', correct: false } ], nextAnswerId: 3 });
+    }
+    syncCatalogMode();
+    renderPreview();
+  }
+  if (action === 'add-quiz-answer') {
+    const qid = Number(element.dataset.quizQid);
+    const q = quizState.questions.find((x) => x.id === qid);
+    if (q) {
+      q.answers.push({ id: q.nextAnswerId++, text: '', correct: false });
+      syncCatalogMode();
+      renderPreview();
+    }
+  }
+  if (action === 'remove-quiz-answer') {
+    const qid = Number(element.dataset.quizQid);
+    const aid = Number(element.dataset.quizAid);
+    const q = quizState.questions.find((x) => x.id === qid);
+    if (q && q.answers.length > 2) {
+      q.answers = q.answers.filter((a) => a.id !== aid);
+      syncCatalogMode();
+      renderPreview();
+    }
   }
   if (action === 'add-flashcard') {
     const id = flashcardState.nextId++;
@@ -2149,11 +2365,11 @@ function bindEvents(): void {
         const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
         if (instructionsInput) instructionsInput.value = state.instructions;
       }
-      selectedH5PId = state.mode === 'wordsearch' ? 'find-the-words' : state.mode === 'crossword' ? 'crossword' : state.mode === 'dictation' ? 'dictation' : 'flashcards';
+      selectedH5PId = state.mode === 'wordsearch' ? 'find-the-words' : state.mode === 'crossword' ? 'crossword' : state.mode === 'dictation' ? 'dictation' : state.mode === 'flashcards' ? 'flashcards' : 'quiz-question-set';
       document.querySelectorAll('[data-mode]').forEach((button) => button.classList.toggle('is-active', button === modeButton));
       renderCatalog();
       syncCatalogMode();
-      if (state.mode === 'dictation' || state.mode === 'flashcards') {
+      if (state.mode === 'dictation' || state.mode === 'flashcards' || state.mode === 'quiz') {
         renderPreview();
       } else {
         renderEntries();
@@ -2170,6 +2386,7 @@ function bindEvents(): void {
       if (selectedH5PId === 'find-the-words') state.mode = 'wordsearch';
       if (selectedH5PId === 'dictation') state.mode = 'dictation';
       if (selectedH5PId === 'flashcards') state.mode = 'flashcards';
+      if (selectedH5PId === 'quiz-question-set') state.mode = 'quiz';
       if (state.mode !== previousMode && (!state.instructions.trim() || state.instructions === defaultInstructions[previousMode])) {
         state.instructions = defaultInstructions[state.mode];
         const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
@@ -2265,6 +2482,22 @@ function bindEvents(): void {
     }
     if (target.matches('[data-dictation-answer]')) {
       dictationState.answers.set(Number(target.dataset.dictationAnswer), target.value);
+    }
+    if (target.matches('[data-quiz-title]')) { state.title = target.value; renderPreview(); }
+    if (target.matches('[data-quiz-instructions]')) { state.instructions = target.value; renderPreview(); }
+    if (target.matches('[data-quiz-question]')) {
+      const q = quizState.questions.find((item) => item.id === Number(target.dataset.quizQuestion));
+      if (q) q.question = target.value;
+    }
+    if (target.matches('[data-quiz-answer-text]')) {
+      const q = quizState.questions.find((item) => item.id === Number(target.dataset.quizAnswerText));
+      const a = q?.answers.find((x) => x.id === Number(target.dataset.quizAnswerId));
+      if (a) a.text = target.value;
+    }
+    if (target.matches('[data-quiz-answer-correct]')) {
+      const q = quizState.questions.find((item) => item.id === Number(target.dataset.quizAnswerCorrect));
+      const a = q?.answers.find((x) => x.id === Number(target.dataset.quizAnswerId));
+      if (a) a.correct = (target as HTMLInputElement).checked;
     }
     if (target.matches('[data-flashcard-title]')) { state.title = target.value; renderPreview(); }
     if (target.matches('[data-flashcard-instructions]')) { state.instructions = target.value; renderPreview(); }
