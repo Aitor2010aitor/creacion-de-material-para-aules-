@@ -27,6 +27,7 @@ let catalogQuery = '';
 let catalogGroup: H5PGroup | 'all' = 'all';
 let genericContent = '';
 let genericSettings = { instructions: '', difficulty: 'media', time: 0, showScore: true, randomize: false, mediaUrl: '' };
+let autoGenerateTimer = 0;
 
 type Point = { row: number; col: number };
 
@@ -217,6 +218,7 @@ function seedMarkup(): void {
         </a>
         <div class="topbar-actions">
           <span class="save-state"><span class="save-dot"></span> Guardado localmente</span>
+          <button class="button button-dark" data-action="export-h5p" title="Descargar paquete H5P para Aules"><span class="icon">↓</span> Descargar .h5p</button>
           <button class="button button-ghost" data-action="scroll-preview"><span class="icon">◉</span> Vista previa</button>
           <button class="avatar" aria-label="Perfil de usuario">AM</button>
         </div>
@@ -280,7 +282,7 @@ function seedMarkup(): void {
               <div class="difficulty-control"><button data-difficulty="easy">Fácil</button><button data-difficulty="medium" class="is-selected">Medio</button><button data-difficulty="hard">Difícil</button></div>
             </div>
             <div class="helper-tip"><span>✦</span><span><strong>Consejo docente</strong><br />Usa entre 5 y 10 palabras para mantener el ritmo de la actividad.</span></div>
-            <button class="button button-primary generate-button" data-action="generate"><span>✦</span> Generar actividad <span class="button-arrow">↗</span></button>
+            <button class="button button-primary generate-button" data-action="generate"><span>✦</span> Regenerar actividad <span class="button-arrow">↗</span></button>
           </aside>
 
           <section class="preview-panel" id="preview-section">
@@ -803,6 +805,24 @@ function generateActivity(showMessage = true): void {
   else generateCrossword();
   renderPreview();
   if (showMessage) showToast(state.mode === 'wordsearch' ? 'Sopa de letras generada.' : 'Crucigrama actualizado.');
+}
+
+function autoGenerateNow(): void {
+  if (state.mode === 'wordsearch') generateWordSearch();
+  else generateCrossword();
+  renderPreview();
+}
+
+function scheduleAutoGenerate(delay = 320): void {
+  window.clearTimeout(autoGenerateTimer);
+  autoGenerateTimer = window.setTimeout(() => {
+    const valid = state.entries.filter((entry) => {
+      const word = normalize(entry.word);
+      return word.length >= 2 && (state.mode !== 'wordsearch' || word.length <= state.gridSize);
+    });
+    if (valid.length < 2) { renderPreview(); return; }
+    autoGenerateNow();
+  }, delay);
 }
 
 function updateDifficultyButtons(): void {
@@ -1512,7 +1532,7 @@ function handleAction(action: string, element: HTMLElement): void {
     const id = Number(element.dataset.entryId);
     state.entries = state.entries.filter((entry) => entry.id !== id);
     renderEntries();
-    renderPreview();
+    autoGenerateNow();
   }
   if (action === 'add-video-interaction') {
     videoState.interactions.push({ id: videoState.nextId++, time: Math.max(0, ...videoState.interactions.map((item) => item.time)) + 5, question: 'Nueva pregunta', options: ['Opción 1', 'Opción 2', 'Opción 3'], correct: 0 });
@@ -1751,7 +1771,11 @@ function bindEvents(): void {
     }
     if (target.dataset.entryId && target.dataset.field) {
       const entry = state.entries.find((item) => item.id === Number(target.dataset.entryId));
-      if (entry) entry[target.dataset.field as 'word' | 'clue'] = target.value;
+      if (entry) {
+        entry[target.dataset.field as 'word' | 'clue'] = target.value;
+        if (target.dataset.field === 'word') scheduleAutoGenerate();
+        else renderPreview();
+      }
     }
     if (target.matches('[data-catalog-search]')) { catalogQuery = target.value; renderCatalog(); }
   });
