@@ -282,10 +282,11 @@ function seedMarkup(): void {
               <div class="difficulty-control"><button data-difficulty="easy">Fácil</button><button data-difficulty="medium" class="is-selected">Medio</button><button data-difficulty="hard">Difícil</button></div>
             </div>
             <div class="helper-tip"><span>✦</span><span><strong>Consejo docente</strong><br />Usa entre 5 y 10 palabras para mantener el ritmo de la actividad.</span></div>
+            <button class="button button-dark panel-download" data-action="export-h5p"><span>↓</span> Descargar .h5p para Aules</button>
           </aside>
 
           <section class="preview-panel" id="preview-section">
-            <div class="preview-topline"><div><span class="section-kicker">VISTA PREVIA</span><h2>Así lo verá tu alumnado</h2></div><span class="live-pill"><span></span> En vivo</span></div>
+            <div class="preview-topline"><div><span class="section-kicker">VISTA PREVIA</span><h2>Así lo verá tu alumnado</h2></div><div class="preview-topline-actions"><span class="live-pill"><span></span> En vivo</span><button class="button button-dark" data-action="export-h5p"><span>↓</span> Descargar .h5p</button></div></div>
             <div class="activity-preview" data-preview></div>
             <div class="preview-footer"><span><span class="keyboard-key">⌘</span> Interactiva en pantalla</span><span class="preview-footer-separator"></span><span>Lista para imprimir</span></div>
           </section>
