@@ -881,6 +881,7 @@ function renderPreview(): void {
   const preview = $('[data-preview]');
   if (selectedH5PId === 'interactive-video') preview.innerHTML = renderVideoPreview();
   else if (selectedH5PId === 'dictation') preview.innerHTML = renderDictationPreview();
+  else if (selectedH5PId === 'flashcards') preview.innerHTML = renderFlashcardsPreview();
   else if (!isNativeEditor()) preview.innerHTML = renderGenericPreview();
   else preview.innerHTML = state.mode === 'wordsearch' ? renderWordSearchPreview() : renderCrosswordPreview();
 }
