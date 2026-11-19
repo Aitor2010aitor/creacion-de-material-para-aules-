@@ -74,7 +74,7 @@ export const h5pCatalog: H5PType[] = [
   demo,
   description,
   fields,
-  status: (id === 'find-the-words' || id === 'crossword' || id === 'dictation' ? 'ready' : 'construction') as H5PStatus,
+  status: (id === 'find-the-words' || id === 'crossword' || id === 'dictation' || id === 'flashcards' ? 'ready' : 'construction') as H5PStatus,
 }));
 
 export const h5pGroupLabels: Record<H5PGroup, string> = {

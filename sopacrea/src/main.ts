@@ -1,7 +1,7 @@
 import './style.css';
 import { h5pCatalog, h5pGroupLabels, type H5PGroup } from './h5pCatalog';
 
-type Mode = 'wordsearch' | 'crossword' | 'dictation';
+type Mode = 'wordsearch' | 'crossword' | 'dictation' | 'flashcards';
 type Difficulty = 'easy' | 'medium' | 'hard';
 
 type Entry = {
@@ -89,6 +89,19 @@ const dictationState = {
   checked: false,
 };
 
+type FlashcardAudio = { file: File; url: string };
+type FlashcardImage = { file: File; url: string };
+type FlashcardCard = { id: number; text: string; answer: string; image: FlashcardImage | null; audio: FlashcardAudio | null; tipFront: string; tipBack: string };
+
+const flashcardState = {
+  cards: [
+    { id: 1, text: '¿Cómo se dice "tree" en español?', answer: 'árbol', image: null, audio: null, tipFront: '', tipBack: '' },
+    { id: 2, text: '¿Cómo se dice "river" en español?', answer: 'río', image: null, audio: null, tipFront: '', tipBack: '' },
+  ] as FlashcardCard[],
+  nextId: 3,
+  flipped: new Set<number>(),
+};
+
 const normalizeDictation = (value: string): string => value
   .toLocaleLowerCase('es-ES')
   .normalize('NFD')
@@ -140,6 +153,7 @@ const defaultInstructions: Record<Mode, string> = {
   wordsearch: 'Encuentra las palabras escondidas en la cuadrícula.',
   crossword: 'Resuelve el crucigrama con las pistas.',
   dictation: 'Escucha cada audio con atención y escribe la frase que oyes.',
+  flashcards: 'Lee la pregunta, intenta responder y voltea la tarjeta para comprobar.',
 };
 const h5pGroupIcons: Record<H5PGroup, string> = { quiz: '☑', presentation: '▤', game: '♞', multimedia: '◉', writing: '✎', survey: '☷', other: '◆' };
 
@@ -164,7 +178,7 @@ function isWordActivity(): boolean {
 }
 
 function isNativeEditor(): boolean {
-  return isWordActivity() || selectedH5PId === 'interactive-video' || selectedH5PId === 'dictation';
+  return isWordActivity() || selectedH5PId === 'interactive-video' || selectedH5PId === 'dictation' || selectedH5PId === 'flashcards';
 }
 
 function syncCatalogMode(): void {
@@ -178,7 +192,7 @@ function syncCatalogMode(): void {
   const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
   if (instructionsInput && instructionsInput.value !== state.instructions) instructionsInput.value = state.instructions;
   editor.classList.toggle('is-catalog-mode', !native);
-  generic.innerHTML = native ? '' : selectedH5PId === 'interactive-video' ? renderVideoEditor() : selectedH5PId === 'dictation' ? renderDictationEditor() : `<div class="generic-editor-card"><span class="section-kicker">CREADOR H5P</span><h3>Crear ${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><label class="field-label">Título de la actividad<input data-generic-title type="text" value="${escapeHtml(state.title)}" /></label><label class="field-label">Contenido principal<textarea data-generic-content rows="5" placeholder="Escribe aquí el contenido de tu actividad...">${escapeHtml(genericContent)}</textarea></label><label class="field-label">Instrucciones para el alumnado<textarea data-generic-instructions rows="3" placeholder="Explica qué debe hacer el alumnado...">${escapeHtml(genericSettings.instructions)}</textarea></label><div class="generic-config-grid"><label class="field-label">Dificultad<select data-generic-difficulty><option value="facil" ${genericSettings.difficulty === 'facil' ? 'selected' : ''}>Fácil</option><option value="media" ${genericSettings.difficulty === 'media' ? 'selected' : ''}>Media</option><option value="dificil" ${genericSettings.difficulty === 'dificil' ? 'selected' : ''}>Difícil</option></select></label><label class="field-label">Tiempo (minutos)<input data-generic-time type="number" min="0" value="${genericSettings.time}" /></label></div><div class="generic-checks"><label><input data-generic-score type="checkbox" ${genericSettings.showScore ? 'checked' : ''} /> Mostrar puntuación</label><label><input data-generic-random type="checkbox" ${genericSettings.randomize ? 'checked' : ''} /> Orden aleatorio</label></div><label class="field-label">Vídeo, imagen o recurso (URL)<input data-generic-media type="url" value="${escapeHtml(genericSettings.mediaUrl)}" placeholder="https://..." /></label><div class="generic-fields"><strong>Campos principales de este formato</strong><span>${escapeHtml(selected.fields)}</span></div><div class="generic-editor-actions"><button class="button button-dark" data-action="generate-generic"><span class="icon">✦</span> Generar actividad</button><button class="button button-ghost" data-action="download-selected"><span class="icon">↓</span> Descargar borrador</button><a class="button button-ghost" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial</a></div><small>La configuración se guarda en el borrador y se refleja en la vista previa. La exportación específica H5P se implementa por formato.</small></div>`;
+  generic.innerHTML = native ? '' : selectedH5PId === 'interactive-video' ? renderVideoEditor() : selectedH5PId === 'dictation' ? renderDictationEditor() : selectedH5PId === 'flashcards' ? renderFlashcardsEditor() : `<div class="generic-editor-card"><span class="section-kicker">CREADOR H5P</span><h3>Crear ${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><label class="field-label">Título de la actividad<input data-generic-title type="text" value="${escapeHtml(state.title)}" /></label><label class="field-label">Contenido principal<textarea data-generic-content rows="5" placeholder="Escribe aquí el contenido de tu actividad...">${escapeHtml(genericContent)}</textarea></label><label class="field-label">Instrucciones para el alumnado<textarea data-generic-instructions rows="3" placeholder="Explica qué debe hacer el alumnado...">${escapeHtml(genericSettings.instructions)}</textarea></label><div class="generic-config-grid"><label class="field-label">Dificultad<select data-generic-difficulty><option value="facil" ${genericSettings.difficulty === 'facil' ? 'selected' : ''}>Fácil</option><option value="media" ${genericSettings.difficulty === 'media' ? 'selected' : ''}>Media</option><option value="dificil" ${genericSettings.difficulty === 'dificil' ? 'selected' : ''}>Difícil</option></select></label><label class="field-label">Tiempo (minutos)<input data-generic-time type="number" min="0" value="${genericSettings.time}" /></label></div><div class="generic-checks"><label><input data-generic-score type="checkbox" ${genericSettings.showScore ? 'checked' : ''} /> Mostrar puntuación</label><label><input data-generic-random type="checkbox" ${genericSettings.randomize ? 'checked' : ''} /> Orden aleatorio</label></div><label class="field-label">Vídeo, imagen o recurso (URL)<input data-generic-media type="url" value="${escapeHtml(genericSettings.mediaUrl)}" placeholder="https://..." /></label><div class="generic-fields"><strong>Campos principales de este formato</strong><span>${escapeHtml(selected.fields)}</span></div><div class="generic-editor-actions"><button class="button button-dark" data-action="generate-generic"><span class="icon">✦</span> Generar actividad</button><button class="button button-ghost" data-action="download-selected"><span class="icon">↓</span> Descargar borrador</button><a class="button button-ghost" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial</a></div><small>La configuración se guarda en el borrador y se refleja en la vista previa. La exportación específica H5P se implementa por formato.</small></div>`;
 }
 
 function renderGenericPreview(): string {
@@ -330,6 +344,72 @@ function renderDictationPreview(): string {
     </div>
   </div>`;
 }
+function renderFlashcardsEditor(): string {
+  const items = flashcardState.cards.map((card, index) => {
+    const imageName = card.image ? card.image.file.name : '';
+    const audioName = card.audio ? card.audio.file.name : '';
+    return `<div class="flashcard-item" data-flashcard-item="${card.id}">
+      <div class="flashcard-item-head"><span class="entry-index">${String(index + 1).padStart(2, '0')}</span><strong>Tarjeta ${index + 1}</strong><button class="remove-entry" data-action="remove-flashcard" data-flashcard-id="${card.id}" aria-label="Eliminar tarjeta ${index + 1}">×</button></div>
+      <label class="field-label">Pregunta (anverso)<textarea data-flashcard-text="${card.id}" rows="2" maxlength="300" placeholder="Escribe la pregunta o palabra...">${escapeHtml(card.text)}</textarea></label>
+      <label class="field-label">Respuesta (reverso)<textarea data-flashcard-answer="${card.id}" rows="2" maxlength="300" placeholder="Escribe la respuesta...">${escapeHtml(card.answer)}</textarea></label>
+      <div class="flashcard-file-row">
+        <label class="dictation-file ${card.image ? 'has-file' : ''}"><span class="dictation-file-icon">${card.image ? '✓' : '+'}</span><span class="dictation-file-copy"><strong>Imagen (opcional)</strong><small>${imageName ? escapeHtml(imageName) : 'JPG, PNG o WEBP'}</small></span><input type="file" accept="image/*" data-flashcard-image="${card.id}" /></label>
+        ${card.image ? `<button type="button" class="dictation-clear" data-action="clear-flashcard-image" data-flashcard-id="${card.id}">Quitar</button>` : ''}
+      </div>
+      ${card.image ? `<img class="flashcard-editor-image" src="${card.image.url}" alt="" />` : ''}
+      <div class="flashcard-file-row">
+        <label class="dictation-file ${card.audio ? 'has-file' : ''}"><span class="dictation-file-icon">${card.audio ? '✓' : '+'}</span><span class="dictation-file-copy"><strong>Audio (opcional)</strong><small>${audioName ? escapeHtml(audioName) : 'MP3, M4A, OGG o WAV'}</small></span><input type="file" accept="audio/*" data-flashcard-audio="${card.id}" /></label>
+        ${card.audio ? `<button type="button" class="dictation-clear" data-action="clear-flashcard-audio" data-flashcard-id="${card.id}">Quitar</button>` : ''}
+      </div>
+      ${card.audio ? `<audio class="dictation-editor-audio" controls preload="metadata" src="${card.audio.url}"></audio>` : ''}
+      <div class="flashcard-tips">
+        <label class="field-label">Pista anverso (opcional)<input data-flashcard-tipfront="${card.id}" type="text" value="${escapeHtml(card.tipFront)}" maxlength="120" /></label>
+        <label class="field-label">Pista reverso (opcional)<input data-flashcard-tipback="${card.id}" type="text" value="${escapeHtml(card.tipBack)}" maxlength="120" /></label>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="generic-editor-card flashcard-editor-card">
+    <span class="section-kicker">CREADOR H5P</span>
+    <h3>Tarjeta didáctica</h3>
+    <p>Sube una imagen y/o audio por tarjeta y escribe la pregunta y la respuesta.</p>
+    <label class="field-label">Título de la actividad<input data-flashcard-title type="text" value="${escapeHtml(state.title)}" maxlength="60" /></label>
+    <label class="field-label">Instrucciones<textarea data-flashcard-instructions rows="2" maxlength="140">${escapeHtml(state.instructions)}</textarea></label>
+    <div class="content-heading"><div><span class="section-kicker">CONTENIDO</span><h3>Tarjetas</h3></div><span class="counter">${flashcardState.cards.length} ${flashcardState.cards.length === 1 ? 'tarjeta' : 'tarjetas'}</span></div>
+    ${items}
+    <button class="add-entry" data-action="add-flashcard"><span>+</span> Añadir tarjeta</button>
+    <div class="generic-editor-actions"><button class="button button-dark" data-action="update-flashcards"><span class="icon">↻</span> Actualizar vista previa</button></div>
+  </div>`;
+}
+
+function renderFlashcardsPreview(): string {
+  const items = flashcardState.cards.map((card) => {
+    const flipped = flashcardState.flipped.has(card.id);
+    return `<div class="flashcard-card ${flipped ? 'is-flipped' : ''}" data-flashcard-flip="${card.id}">
+      <div class="flashcard-face flashcard-front">
+        ${card.image ? `<img src="${card.image.url}" alt="" />` : ''}
+        <p>${escapeHtml(card.text || 'Pregunta')}</p>
+        ${card.audio ? `<audio controls preload="metadata" src="${card.audio.url}"></audio>` : ''}
+        ${card.tipFront ? `<small>${escapeHtml(card.tipFront)}</small>` : ''}
+        <button class="button button-ghost" data-action="flip-flashcard" data-flashcard-id="${card.id}">Voltear</button>
+      </div>
+      <div class="flashcard-face flashcard-back">
+        <p>${escapeHtml(card.answer || 'Respuesta')}</p>
+        ${card.tipBack ? `<small>${escapeHtml(card.tipBack)}</small>` : ''}
+        <button class="button button-ghost" data-action="flip-flashcard" data-flashcard-id="${card.id}">Volver</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="generic-preview flashcard-preview">
+    <div class="preview-header"><div class="preview-label"><span class="preview-icon">TD</span> TARJETA DIDÁCTICA</div><span class="preview-number">VISTA PREVIA</span></div>
+    <div class="generic-preview-body">
+      <span class="section-kicker">ACTIVIDAD CREADA</span>
+      <h3>${escapeHtml(state.title || 'Tarjeta didáctica')}</h3>
+      <p>${escapeHtml(state.instructions || 'Lee la pregunta y voltea la tarjeta.')}</p>
+      <div class="flashcard-preview-list">${items || '<p class="video-empty">Añade tarjetas para verlas aquí.</p>'}</div>
+    </div>
+  </div>`;
+}
 
 function seedMarkup(): void {
   document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -365,6 +445,7 @@ function seedMarkup(): void {
           <button class="mode-tab is-active" data-mode="wordsearch" role="tab"><span class="tab-icon">⌕</span><span><strong>Sopa de letras</strong><small>Disponible · exporta para Aules</small></span><span class="tab-arrow">↗</span></button>
           <button class="mode-tab" data-mode="crossword" role="tab"><span class="tab-icon tab-icon-cross">＋</span><span><strong>Crucigrama</strong><small>Resuelve con pistas</small></span><span class="tab-arrow">↗</span></button>
           <button class="mode-tab" data-mode="dictation" role="tab"><span class="tab-icon">♫</span><span><strong>Dictado</strong><small>Escucha, escribe y corrige</small></span><span class="tab-arrow">↗</span></button>
+          <button class="mode-tab" data-mode="flashcards" role="tab"><span class="tab-icon">TD</span><span><strong>Tarjeta didáctica</strong><small>Palabra, imagen y audio</small></span><span class="tab-arrow">→</span></button>
         </div>
 
         <section class="catalog-section">
@@ -1715,10 +1796,77 @@ async function exportOfficialDictationH5P(): Promise<void> {
   }
 }
 
+async function exportOfficialFlashcardsH5P(): Promise<void> {
+  const validCards = flashcardState.cards.filter((card) => card.text.trim() || card.answer.trim());
+  if (!validCards.length) {
+    showToast('Añade al menos una tarjeta con pregunta o respuesta.', 'error');
+    return;
+  }
+
+  const zipFiles: Array<{ name: string; data: string | Uint8Array }> = [];
+  const h5p = {
+    title: state.title || 'Tarjeta didáctica',
+    language: 'es',
+    mainLibrary: 'H5P.Dialogcards',
+    embedTypes: ['iframe'],
+    license: 'U',
+    preloadedDependencies: [
+      { machineName: 'H5P.Dialogcards', majorVersion: 1, minorVersion: 9 },
+      { machineName: 'FontAwesome', majorVersion: 4, minorVersion: 5 },
+      { machineName: 'H5P.JoubelUI', majorVersion: 1, minorVersion: 3 },
+      { machineName: 'H5P.Audio', majorVersion: 1, minorVersion: 5 },
+    ],
+  };
+  zipFiles.push({ name: 'h5p.json', data: JSON.stringify(h5p, null, 2) });
+
+  const dialogs = [];
+  let imageIndex = 1;
+  let audioIndex = 1;
+  for (const card of validCards) {
+    const dialog: Record<string, unknown> = {
+      text: card.text.trim() || ' ',
+      answer: card.answer.trim() || ' ',
+    };
+    if (card.image) {
+      const ext = card.image.file.name.split('.').pop()?.toLowerCase() || 'png';
+      const name = `image-${imageIndex}.${ext}`;
+      zipFiles.push({ name: `content/images/${name}`, data: new Uint8Array(await card.image.file.arrayBuffer()) });
+      dialog.image = { path: `images/${name}`, mime: card.image.file.type || 'image/png', copyright: { license: 'U' } };
+      imageIndex += 1;
+    }
+    if (card.audio) {
+      const ext = card.audio.file.name.split('.').pop()?.toLowerCase() || 'mp3';
+      const name = `audio-${audioIndex}.${ext}`;
+      zipFiles.push({ name: `content/audios/${name}`, data: new Uint8Array(await card.audio.file.arrayBuffer()) });
+      const mime = card.audio.file.type || 'audio/mpeg';
+      dialog.audio = { path: `audios/${name}`, mime, copyright: { license: 'U' } };
+      audioIndex += 1;
+    }
+    if (card.tipFront.trim() || card.tipBack.trim()) {
+      dialog.tips = { front: card.tipFront.trim(), back: card.tipBack.trim() };
+    }
+    dialogs.push(dialog);
+  }
+
+  const content = {
+    title: state.title || 'Tarjeta didáctica',
+    mode: 'normal',
+    description: state.instructions || '',
+    dialogs,
+    behaviour: {},
+  };
+  zipFiles.push({ name: 'content/content.json', data: JSON.stringify(content, null, 2) });
+
+  const blob = createZip(zipFiles);
+  const slug = normalize(state.title).toLowerCase().replaceAll(' ', '-') || 'tarjeta-didactica';
+  downloadBlob(blob, `${slug}-tarjeta-didactica-aules.h5p`);
+  showToast('Tarjeta didáctica descargada.');
+}
 function exportH5P(): void {
   if (!isNativeEditor()) { showToast('Este tipo H5P está seleccionado como plantilla. Abre su demo para construirlo.', 'error'); return; }
   if (selectedH5PId === 'interactive-video') { exportInteractiveVideoH5P(); return; }
   if (selectedH5PId === 'dictation') { void exportOfficialDictationH5P(); return; }
+  if (selectedH5PId === 'flashcards') { void exportOfficialFlashcardsH5P(); return; }
   if (!showValidation()) return;
   if (state.mode === 'wordsearch') { exportOfficialWordSearchH5P(); return; }
   exportOfficialCrosswordH5P();
@@ -1855,6 +2003,46 @@ function handleAction(action: string, element: HTMLElement): void {
     renderPreview();
     showToast('Vista previa del dictado actualizada.');
   }
+  if (action === 'update-flashcards') {
+    renderPreview();
+    showToast('Vista previa de las tarjetas actualizada.');
+  }
+  if (action === 'add-flashcard') {
+    const id = flashcardState.nextId++;
+    flashcardState.cards.push({ id, text: '', answer: '', image: null, audio: null, tipFront: '', tipBack: '' });
+    syncCatalogMode();
+    renderPreview();
+    showToast('Tarjeta añadida.');
+  }
+  if (action === 'remove-flashcard') {
+    const id = Number(element.dataset.flashcardId);
+    flashcardState.cards = flashcardState.cards.filter((card) => card.id !== id);
+    if (!flashcardState.cards.length) {
+      const nid = flashcardState.nextId++;
+      flashcardState.cards.push({ id: nid, text: '', answer: '', image: null, audio: null, tipFront: '', tipBack: '' });
+    }
+    syncCatalogMode();
+    renderPreview();
+  }
+  if (action === 'clear-flashcard-image') {
+    const id = Number(element.dataset.flashcardId);
+    const card = flashcardState.cards.find((c) => c.id === id);
+    if (card?.image) { URL.revokeObjectURL(card.image.url); card.image = null; }
+    syncCatalogMode();
+    renderPreview();
+  }
+  if (action === 'clear-flashcard-audio') {
+    const id = Number(element.dataset.flashcardId);
+    const card = flashcardState.cards.find((c) => c.id === id);
+    if (card?.audio) { URL.revokeObjectURL(card.audio.url); card.audio = null; }
+    syncCatalogMode();
+    renderPreview();
+  }
+  if (action === 'flip-flashcard') {
+    const id = Number(element.dataset.flashcardId);
+    if (flashcardState.flipped.has(id)) flashcardState.flipped.delete(id); else flashcardState.flipped.add(id);
+    renderPreview();
+  }
   if (action === 'check-dictation') {
     dictationState.checked = true;
     renderPreview();
@@ -1967,11 +2155,11 @@ function bindEvents(): void {
         const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
         if (instructionsInput) instructionsInput.value = state.instructions;
       }
-      selectedH5PId = state.mode === 'wordsearch' ? 'find-the-words' : state.mode === 'crossword' ? 'crossword' : 'dictation';
+      selectedH5PId = state.mode === 'wordsearch' ? 'find-the-words' : state.mode === 'crossword' ? 'crossword' : state.mode === 'dictation' ? 'dictation' : 'flashcards';
       document.querySelectorAll('[data-mode]').forEach((button) => button.classList.toggle('is-active', button === modeButton));
       renderCatalog();
       syncCatalogMode();
-      if (state.mode === 'dictation') {
+      if (state.mode === 'dictation' || state.mode === 'flashcards') {
         renderPreview();
       } else {
         renderEntries();
@@ -1987,6 +2175,7 @@ function bindEvents(): void {
       if (selectedH5PId === 'crossword') state.mode = 'crossword';
       if (selectedH5PId === 'find-the-words') state.mode = 'wordsearch';
       if (selectedH5PId === 'dictation') state.mode = 'dictation';
+      if (selectedH5PId === 'flashcards') state.mode = 'flashcards';
       if (state.mode !== previousMode && (!state.instructions.trim() || state.instructions === defaultInstructions[previousMode])) {
         state.instructions = defaultInstructions[state.mode];
         const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
@@ -2083,6 +2272,24 @@ function bindEvents(): void {
     if (target.matches('[data-dictation-answer]')) {
       dictationState.answers.set(Number(target.dataset.dictationAnswer), target.value);
     }
+    if (target.matches('[data-flashcard-title]')) { state.title = target.value; renderPreview(); }
+    if (target.matches('[data-flashcard-instructions]')) { state.instructions = target.value; renderPreview(); }
+    if (target.matches('[data-flashcard-text]')) {
+      const card = flashcardState.cards.find((item) => item.id === Number(target.dataset.flashcardText));
+      if (card) card.text = target.value;
+    }
+    if (target.matches('[data-flashcard-answer]')) {
+      const card = flashcardState.cards.find((item) => item.id === Number(target.dataset.flashcardAnswer));
+      if (card) card.answer = target.value;
+    }
+    if (target.matches('[data-flashcard-tipfront]')) {
+      const card = flashcardState.cards.find((item) => item.id === Number(target.dataset.flashcardTipfront));
+      if (card) card.tipFront = target.value;
+    }
+    if (target.matches('[data-flashcard-tipback]')) {
+      const card = flashcardState.cards.find((item) => item.id === Number(target.dataset.flashcardTipback));
+      if (card) card.tipBack = target.value;
+    }
     if (target.matches('[data-video-url]')) { videoState.url = target.value; renderPreview(); }
     if (target.matches('[data-video-field]')) {
       const item = videoState.interactions.find((entry) => entry.id === Number(target.dataset.videoId));
@@ -2140,6 +2347,34 @@ function bindEvents(): void {
         if (sentence[kind]) URL.revokeObjectURL(sentence[kind]!.url);
         sentence[kind] = { file, url: URL.createObjectURL(file) };
         dictationState.checked = false;
+        syncCatalogMode();
+        renderPreview();
+      }
+    }
+    if (target.matches('[data-flashcard-image]')) {
+      const input = target as HTMLInputElement;
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.type && !file.type.startsWith('image/')) { showToast('El archivo debe ser una imagen (JPG, PNG o WEBP).', 'error'); input.value = ''; return; }
+      if (file.size > 10 * 1024 * 1024) { showToast('La imagen supera los 10 MB.', 'error'); input.value = ''; return; }
+      const card = flashcardState.cards.find((item) => item.id === Number(input.dataset.flashcardImage));
+      if (card) {
+        if (card.image) URL.revokeObjectURL(card.image.url);
+        card.image = { file, url: URL.createObjectURL(file) };
+        syncCatalogMode();
+        renderPreview();
+      }
+    }
+    if (target.matches('[data-flashcard-audio]')) {
+      const input = target as HTMLInputElement;
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.type && !file.type.startsWith('audio/')) { showToast('El archivo debe ser de audio (MP3, M4A, OGG o WAV).', 'error'); input.value = ''; return; }
+      if (file.size > 25 * 1024 * 1024) { showToast('El audio supera los 25 MB.', 'error'); input.value = ''; return; }
+      const card = flashcardState.cards.find((item) => item.id === Number(input.dataset.flashcardAudio));
+      if (card) {
+        if (card.audio) URL.revokeObjectURL(card.audio.url);
+        card.audio = { file, url: URL.createObjectURL(file) };
         syncCatalogMode();
         renderPreview();
       }
