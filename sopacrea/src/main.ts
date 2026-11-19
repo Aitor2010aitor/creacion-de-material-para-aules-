@@ -1,7 +1,7 @@
 import './style.css';
 import { h5pCatalog, h5pGroupLabels, type H5PGroup } from './h5pCatalog';
 
-type Mode = 'wordsearch' | 'crossword';
+type Mode = 'wordsearch' | 'crossword' | 'dictation';
 type Difficulty = 'easy' | 'medium' | 'hard';
 
 type Entry = {
@@ -21,6 +21,8 @@ type Placement = {
 
 type VideoInteraction = { id: number; time: number; question: string; options: string[]; correct: number };
 type VideoBookmark = { id: number; time: number; label: string };
+type DictationAudio = { file: File; url: string };
+type DictationSentence = { id: number; text: string; description: string; audio: DictationAudio | null; slow: DictationAudio | null };
 
 let selectedH5PId = 'find-the-words';
 let catalogQuery = '';
@@ -77,6 +79,38 @@ const videoState = {
   nextId: 3,
 };
 
+const dictationState = {
+  sentences: [
+    { id: 1, text: 'El bosque está lleno de vida.', description: 'Escucha con atención y escribe la frase.', audio: null, slow: null },
+    { id: 2, text: 'La lluvia alimenta las plantas.', description: '', audio: null, slow: null },
+  ] as DictationSentence[],
+  nextId: 3,
+  answers: new Map<number, string>(),
+  checked: false,
+};
+
+const normalizeDictation = (value: string): string => value
+  .toLocaleLowerCase('es-ES')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^\p{L}\p{N}\s]/gu, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const dictationVariants = (text: string): string[] => {
+  let variants = [''];
+  for (const token of text.trim().split(/\s+/).filter(Boolean)) {
+    const options = token.split('|').map(normalizeDictation).filter(Boolean);
+    if (!options.length) continue;
+    const next: string[] = [];
+    for (const prefix of variants) {
+      for (const option of options) next.push(prefix ? `${prefix} ${option}` : option);
+    }
+    variants = next.slice(0, 64);
+  }
+  return variants;
+};
+
 const formatTime = (seconds: number): string => {
   const safe = Math.max(0, Math.floor(seconds || 0));
   return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
@@ -102,6 +136,11 @@ const escapeHtml = (value: string): string => value
   .replaceAll("'", '&#039;');
 
 const capitalize = (value: string): string => value.charAt(0) + value.slice(1).toLowerCase();
+const defaultInstructions: Record<Mode, string> = {
+  wordsearch: 'Encuentra las palabras escondidas en la cuadrícula.',
+  crossword: 'Resuelve el crucigrama con las pistas.',
+  dictation: 'Escucha cada audio con atención y escribe la frase que oyes.',
+};
 const h5pGroupIcons: Record<H5PGroup, string> = { quiz: '☑', presentation: '▤', game: '♞', multimedia: '◉', writing: '✎', survey: '☷', other: '◆' };
 
 function renderCatalog(): void {
@@ -125,7 +164,7 @@ function isWordActivity(): boolean {
 }
 
 function isNativeEditor(): boolean {
-  return isWordActivity() || selectedH5PId === 'interactive-video';
+  return isWordActivity() || selectedH5PId === 'interactive-video' || selectedH5PId === 'dictation';
 }
 
 function syncCatalogMode(): void {
@@ -134,8 +173,12 @@ function syncCatalogMode(): void {
   if (!editor || !generic) return;
   const selected = h5pCatalog.find((item) => item.id === selectedH5PId) || h5pCatalog[0];
   const native = isWordActivity();
+  const titleInput = document.querySelector<HTMLInputElement>('#activity-title');
+  if (titleInput && titleInput.value !== state.title) titleInput.value = state.title;
+  const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
+  if (instructionsInput && instructionsInput.value !== state.instructions) instructionsInput.value = state.instructions;
   editor.classList.toggle('is-catalog-mode', !native);
-  generic.innerHTML = native ? '' : selectedH5PId === 'interactive-video' ? renderVideoEditor() : `<div class="generic-editor-card"><span class="section-kicker">CREADOR H5P</span><h3>Crear ${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><label class="field-label">Título de la actividad<input data-generic-title type="text" value="${escapeHtml(state.title)}" /></label><label class="field-label">Contenido principal<textarea data-generic-content rows="5" placeholder="Escribe aquí el contenido de tu actividad...">${escapeHtml(genericContent)}</textarea></label><label class="field-label">Instrucciones para el alumnado<textarea data-generic-instructions rows="3" placeholder="Explica qué debe hacer el alumnado...">${escapeHtml(genericSettings.instructions)}</textarea></label><div class="generic-config-grid"><label class="field-label">Dificultad<select data-generic-difficulty><option value="facil" ${genericSettings.difficulty === 'facil' ? 'selected' : ''}>Fácil</option><option value="media" ${genericSettings.difficulty === 'media' ? 'selected' : ''}>Media</option><option value="dificil" ${genericSettings.difficulty === 'dificil' ? 'selected' : ''}>Difícil</option></select></label><label class="field-label">Tiempo (minutos)<input data-generic-time type="number" min="0" value="${genericSettings.time}" /></label></div><div class="generic-checks"><label><input data-generic-score type="checkbox" ${genericSettings.showScore ? 'checked' : ''} /> Mostrar puntuación</label><label><input data-generic-random type="checkbox" ${genericSettings.randomize ? 'checked' : ''} /> Orden aleatorio</label></div><label class="field-label">Vídeo, imagen o recurso (URL)<input data-generic-media type="url" value="${escapeHtml(genericSettings.mediaUrl)}" placeholder="https://..." /></label><div class="generic-fields"><strong>Campos principales de este formato</strong><span>${escapeHtml(selected.fields)}</span></div><div class="generic-editor-actions"><button class="button button-dark" data-action="generate-generic"><span class="icon">✦</span> Generar actividad</button><button class="button button-ghost" data-action="download-selected"><span class="icon">↓</span> Descargar borrador</button><a class="button button-ghost" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial</a></div><small>La configuración se guarda en el borrador y se refleja en la vista previa. La exportación específica H5P se implementa por formato.</small></div>`;
+  generic.innerHTML = native ? '' : selectedH5PId === 'interactive-video' ? renderVideoEditor() : selectedH5PId === 'dictation' ? renderDictationEditor() : `<div class="generic-editor-card"><span class="section-kicker">CREADOR H5P</span><h3>Crear ${escapeHtml(selected.name)}</h3><p>${escapeHtml(selected.description)}</p><label class="field-label">Título de la actividad<input data-generic-title type="text" value="${escapeHtml(state.title)}" /></label><label class="field-label">Contenido principal<textarea data-generic-content rows="5" placeholder="Escribe aquí el contenido de tu actividad...">${escapeHtml(genericContent)}</textarea></label><label class="field-label">Instrucciones para el alumnado<textarea data-generic-instructions rows="3" placeholder="Explica qué debe hacer el alumnado...">${escapeHtml(genericSettings.instructions)}</textarea></label><div class="generic-config-grid"><label class="field-label">Dificultad<select data-generic-difficulty><option value="facil" ${genericSettings.difficulty === 'facil' ? 'selected' : ''}>Fácil</option><option value="media" ${genericSettings.difficulty === 'media' ? 'selected' : ''}>Media</option><option value="dificil" ${genericSettings.difficulty === 'dificil' ? 'selected' : ''}>Difícil</option></select></label><label class="field-label">Tiempo (minutos)<input data-generic-time type="number" min="0" value="${genericSettings.time}" /></label></div><div class="generic-checks"><label><input data-generic-score type="checkbox" ${genericSettings.showScore ? 'checked' : ''} /> Mostrar puntuación</label><label><input data-generic-random type="checkbox" ${genericSettings.randomize ? 'checked' : ''} /> Orden aleatorio</label></div><label class="field-label">Vídeo, imagen o recurso (URL)<input data-generic-media type="url" value="${escapeHtml(genericSettings.mediaUrl)}" placeholder="https://..." /></label><div class="generic-fields"><strong>Campos principales de este formato</strong><span>${escapeHtml(selected.fields)}</span></div><div class="generic-editor-actions"><button class="button button-dark" data-action="generate-generic"><span class="icon">✦</span> Generar actividad</button><button class="button button-ghost" data-action="download-selected"><span class="icon">↓</span> Descargar borrador</button><a class="button button-ghost" href="${selected.demo}" target="_blank" rel="noreferrer">Ver demo oficial</a></div><small>La configuración se guarda en el borrador y se refleja en la vista previa. La exportación específica H5P se implementa por formato.</small></div>`;
 }
 
 function renderGenericPreview(): string {
@@ -208,6 +251,86 @@ function renderVideoPreview(): string {
   </div>`;
 }
 
+function renderDictationEditor(): string {
+  const items = dictationState.sentences.map((sentence, index) => {
+    const audioName = sentence.audio?.file.name || '';
+    const slowName = sentence.slow?.file.name || '';
+    return `<div class="dictation-item" data-dictation-item="${sentence.id}">
+      <div class="dictation-item-head"><span class="entry-index">${String(index + 1).padStart(2, '0')}</span><strong>Frase ${index + 1}</strong><button class="remove-entry" data-action="remove-dictation-sentence" data-dictation-id="${sentence.id}" aria-label="Eliminar frase ${index + 1}">×</button></div>
+      <label class="field-label">Descripción (opcional)<input data-dictation-description="${sentence.id}" type="text" value="${escapeHtml(sentence.description)}" maxlength="120" placeholder="Por ejemplo: diálogo en una tienda" /></label>
+      <label class="field-label">Transcripción correcta *<textarea data-dictation-text="${sentence.id}" rows="2" maxlength="1000" placeholder="Escribe exactamente lo que se dice en el audio...">${escapeHtml(sentence.text)}</textarea></label>
+      <div class="dictation-file-row">
+        <label class="dictation-file ${sentence.audio ? 'has-file' : ''}"><span class="dictation-file-icon">${sentence.audio ? '✓' : '＋'}</span><span class="dictation-file-copy"><strong>Audio normal</strong><small>${audioName ? escapeHtml(audioName) : 'MP3, M4A, OGG o WAV'}</small></span><input type="file" accept="audio/*" data-dictation-audio="${sentence.id}" data-dictation-kind="normal" /></label>
+        ${sentence.audio ? `<button type="button" class="dictation-clear" data-action="clear-dictation-audio" data-dictation-id="${sentence.id}" data-dictation-kind="normal">Quitar</button>` : ''}
+      </div>
+      ${sentence.audio ? `<audio class="dictation-editor-audio" controls preload="metadata" src="${sentence.audio.url}"></audio>` : ''}
+      <div class="dictation-file-row">
+        <label class="dictation-file ${sentence.slow ? 'has-file' : ''}"><span class="dictation-file-icon">${sentence.slow ? '✓' : '＋'}</span><span class="dictation-file-copy"><strong>Audio lento (opcional)</strong><small>${slowName ? escapeHtml(slowName) : 'Una versión más pausada'}</small></span><input type="file" accept="audio/*" data-dictation-audio="${sentence.id}" data-dictation-kind="slow" /></label>
+        ${sentence.slow ? `<button type="button" class="dictation-clear" data-action="clear-dictation-audio" data-dictation-id="${sentence.id}" data-dictation-kind="slow">Quitar</button>` : ''}
+      </div>
+      ${sentence.slow ? `<audio class="dictation-editor-audio" controls preload="metadata" src="${sentence.slow.url}"></audio>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<div class="generic-editor-card dictation-editor-card">
+    <span class="section-kicker">CREADOR H5P</span>
+    <h3>Dictado con audio</h3>
+    <p>Sube un audio por frase y escribe la transcripción exacta. El alumnado escuchará y escribirá lo que oye, y H5P lo corregirá automáticamente.</p>
+    <label class="field-label">Título de la actividad<input data-dictation-title type="text" value="${escapeHtml(state.title)}" maxlength="60" /></label>
+    <label class="field-label">Instrucciones<textarea data-dictation-instructions rows="2" maxlength="140">${escapeHtml(state.instructions)}</textarea></label>
+    <div class="content-divider"></div>
+    <div class="content-heading"><div><span class="section-kicker">CONTENIDO</span><h3>Audios y transcripciones</h3></div><span class="counter">${dictationState.sentences.length} ${dictationState.sentences.length === 1 ? 'frase' : 'frases'}</span></div>
+    <div class="video-item-list">${items || '<p class="video-empty">Sin frases todavía. Añade la primera.</p>'}</div>
+    <button class="add-entry" data-action="add-dictation-sentence"><span>＋</span> Añadir frase</button>
+    <div class="generic-editor-actions"><button class="button button-dark" data-action="update-dictation"><span class="icon">✦</span> Actualizar vista previa</button></div>
+    <small>Usa frases cortas y audio claro. Para admitir varias formas de una palabra, sepáralas con | (por ejemplo, «hola|ola»). El paquete se exporta solo con el contenido y usa la librería oficial H5P.Dictation de Aules.</small>
+  </div>`;
+}
+
+function renderDictationPreview(): string {
+  const total = dictationState.sentences.filter((sentence) => sentence.text.trim()).length;
+  let correct = 0;
+  let answered = 0;
+  const items = dictationState.sentences.map((sentence, index) => {
+    const answer = dictationState.answers.get(sentence.id) || '';
+    if (answer.trim()) answered += 1;
+    const hasTarget = Boolean(sentence.text.trim());
+    const isCorrect = hasTarget && dictationVariants(sentence.text).includes(normalizeDictation(answer));
+    if (isCorrect) correct += 1;
+    const stateClass = dictationState.checked ? (isCorrect ? 'is-correct' : 'is-wrong') : '';
+    const feedback = !hasTarget
+      ? '<div class="dictation-feedback is-wrong">⚠ Falta la transcripción en el editor.</div>'
+      : dictationState.checked
+        ? (isCorrect
+          ? '<div class="dictation-feedback is-correct">✓ Correcto</div>'
+          : `<div class="dictation-feedback is-wrong">✗ La solución es: <strong>${escapeHtml(sentence.text.replaceAll('|', ' / '))}</strong></div>`)
+        : '';
+    return `<div class="dictation-sentence ${stateClass}">
+      <div class="dictation-sentence-head"><span class="dictation-number">${String(index + 1).padStart(2, '0')}</span><span>${escapeHtml(sentence.description || 'Escucha y escribe lo que oyes.')}</span></div>
+      <div class="dictation-audio-controls">
+        ${sentence.audio ? `<audio controls preload="metadata" src="${sentence.audio.url}"></audio>` : '<span class="dictation-missing">⚠ Falta el audio: súbelo en el editor.</span>'}
+        ${sentence.slow ? `<div class="dictation-slow"><small>Versión lenta</small><audio controls preload="metadata" src="${sentence.slow.url}"></audio></div>` : ''}
+      </div>
+      <input class="dictation-answer" data-dictation-answer="${sentence.id}" type="text" value="${escapeHtml(answer)}" placeholder="Escribe lo que escuchas..." ${dictationState.checked ? 'disabled' : ''} aria-label="Respuesta de la frase ${index + 1}" />
+      ${feedback}
+    </div>`;
+  }).join('');
+
+  return `<div class="generic-preview dictation-preview">
+    <div class="preview-header"><div class="preview-label"><span class="preview-icon">♫</span> DICTADO</div><span class="preview-number">VISTA PREVIA</span></div>
+    <div class="generic-preview-body">
+      <span class="section-kicker">ACTIVIDAD CREADA</span>
+      <h3>${escapeHtml(state.title || 'Dictado')}</h3>
+      <p>${escapeHtml(state.instructions || 'Escucha cada audio y escribe la frase que oyes.')}</p>
+      <div class="dictation-preview-list">${items || '<p class="video-empty">Añade frases en el editor para empezar.</p>'}</div>
+      <div class="dictation-preview-footer">
+        <span class="dictation-score">${dictationState.checked ? `${correct} de ${total} correctas` : `${answered} de ${total} respondidas`}</span>
+        <div class="dictation-actions"><button class="button button-dark" data-action="check-dictation">Comprobar</button><button class="button button-ghost" data-action="reset-dictation">Reintentar</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function seedMarkup(): void {
   document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="app-shell">
@@ -229,7 +352,7 @@ function seedMarkup(): void {
           <div class="hero-copy">
             <div class="eyebrow"><span class="sparkle">✦</span> Creador de actividades H5P</div>
             <h1>Crea actividades<br /><em>que despiertan</em> curiosidad.</h1>
-            <p class="hero-text">Diseña sopas de letras y crucigramas listos para Aules. Pronto llegarán más formatos: el resto de la biblioteca está en construcción.</p>
+            <p class="hero-text">Diseña sopas de letras, crucigramas y dictados listos para Aules. Pronto llegarán más formatos: el resto de la biblioteca está en construcción.</p>
           </div>
           <div class="hero-note">
             <div class="note-line"><span class="note-number">01</span><span>Elige tu formato</span></div>
@@ -241,10 +364,11 @@ function seedMarkup(): void {
         <div class="mode-switcher" role="tablist" aria-label="Tipo de actividad">
           <button class="mode-tab is-active" data-mode="wordsearch" role="tab"><span class="tab-icon">⌕</span><span><strong>Sopa de letras</strong><small>Disponible · exporta para Aules</small></span><span class="tab-arrow">↗</span></button>
           <button class="mode-tab" data-mode="crossword" role="tab"><span class="tab-icon tab-icon-cross">＋</span><span><strong>Crucigrama</strong><small>Resuelve con pistas</small></span><span class="tab-arrow">↗</span></button>
+          <button class="mode-tab" data-mode="dictation" role="tab"><span class="tab-icon">♫</span><span><strong>Dictado</strong><small>Escucha, escribe y corrige</small></span><span class="tab-arrow">↗</span></button>
         </div>
 
         <section class="catalog-section">
-          <div class="catalog-heading"><div><span class="section-kicker">BIBLIOTECA H5P</span><h2>Explora los 54 tipos oficiales</h2><p>La sopa de letras y el crucigrama ya están disponibles. El resto de formatos está en construcción.</p></div><span class="catalog-badge">2 disponibles · 52 en construcción</span></div>
+          <div class="catalog-heading"><div><span class="section-kicker">BIBLIOTECA H5P</span><h2>Explora los 54 tipos oficiales</h2><p>La sopa de letras, el crucigrama y el dictado ya están disponibles. El resto de formatos está en construcción.</p></div><span class="catalog-badge">3 disponibles · 51 en construcción</span></div>
           <div data-h5p-catalog></div>
         </section>
 
@@ -683,6 +807,7 @@ function renderCrosswordPreview(): string {
 function renderPreview(): void {
   const preview = $('[data-preview]');
   if (selectedH5PId === 'interactive-video') preview.innerHTML = renderVideoPreview();
+  else if (selectedH5PId === 'dictation') preview.innerHTML = renderDictationPreview();
   else if (!isNativeEditor()) preview.innerHTML = renderGenericPreview();
   else preview.innerHTML = state.mode === 'wordsearch' ? renderWordSearchPreview() : renderCrosswordPreview();
 }
@@ -865,14 +990,16 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
   return result;
 }
 
-function createZip(files: Array<{ name: string; data: string }>): Blob {
+function createZip(files: Array<{ name: string; data: string | Uint8Array | ArrayBuffer }>): Blob {
   const encoder = new TextEncoder();
   const localChunks: Uint8Array[] = [];
   const centralChunks: Uint8Array[] = [];
   let offset = 0;
   files.forEach((file) => {
     const name = encoder.encode(file.name);
-    const data = encoder.encode(file.data);
+    const data = typeof file.data === 'string'
+      ? encoder.encode(file.data)
+      : file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data);
     const crc = crc32(data);
     const local = new Uint8Array(30 + name.length + data.length);
     write32(local, 0, 0x04034b50); write16(local, 4, 20); write16(local, 6, 0); write16(local, 8, 0); write16(local, 10, 0); write16(local, 12, 0); write32(local, 14, crc); write32(local, 18, data.length); write32(local, 22, data.length); write16(local, 26, name.length); write16(local, 28, 0);
@@ -1456,9 +1583,142 @@ function exportOfficialCrosswordH5P(): void {
   showToast('Paquete de crucigrama para Aules descargado. Usa la librería oficial H5P.Crossword, sin instalar nada.');
 }
 
+async function exportOfficialDictationH5P(): Promise<void> {
+  const usable = dictationState.sentences.filter((sentence) => sentence.text.trim() && sentence.audio);
+  const skipped = dictationState.sentences.length - usable.length;
+  if (!usable.length) {
+    showToast('Añade al menos una frase con audio y transcripción para exportar el dictado.', 'error');
+    return;
+  }
+
+  const extensionByMime: Record<string, string> = {
+    'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac',
+    'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/ogg': 'ogg', 'audio/webm': 'webm', 'audio/flac': 'flac', 'audio/opus': 'opus',
+  };
+  const mimeByExtension: Record<string, string> = {
+    mp3: 'audio/mpeg', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav',
+    ogg: 'audio/ogg', oga: 'audio/ogg', webm: 'audio/webm', flac: 'audio/flac', opus: 'audio/opus',
+  };
+  const audioFileName = (file: File, base: string): { name: string; mime: string } => {
+    const extension = file.name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+    const safeExtension = extension && mimeByExtension[extension] ? extension : extensionByMime[file.type] || 'mp3';
+    return { name: `${base}.${safeExtension}`, mime: mimeByExtension[safeExtension] || file.type || 'audio/mpeg' };
+  };
+
+  const zipFiles: Array<{ name: string; data: string | Uint8Array }> = [];
+  const sentences: Array<Record<string, unknown>> = [];
+
+  for (const [index, sentence] of usable.entries()) {
+    const normal = audioFileName(sentence.audio!.file, `audio-${index + 1}`);
+    zipFiles.push({ name: `content/audios/${normal.name}`, data: new Uint8Array(await sentence.audio!.file.arrayBuffer()) });
+    const sentenceData: Record<string, unknown> = {
+      sample: [{ path: `audios/${normal.name}`, mime: normal.mime, copyright: { license: 'U' } }],
+      text: sentence.text.trim(),
+    };
+    if (sentence.description.trim()) sentenceData.description = sentence.description.trim();
+    if (sentence.slow) {
+      const slow = audioFileName(sentence.slow.file, `audio-${index + 1}-lento`);
+      zipFiles.push({ name: `content/audios/${slow.name}`, data: new Uint8Array(await sentence.slow.file.arrayBuffer()) });
+      sentenceData.sampleAlternative = [{ path: `audios/${slow.name}`, mime: slow.mime, copyright: { license: 'U' } }];
+    }
+    sentences.push(sentenceData);
+  }
+
+  // Igual que en la sopa y el crucigrama: Aules no permite instalar librerías nuevas.
+  // Enviamos solo el contenido y reutilizamos la librería oficial H5P.Dictation.
+  const content = {
+    media: { type: {}, disableImageZooming: false },
+    taskDescription: state.instructions || 'Escucha cada audio con atención y escribe la frase que oyes.',
+    sentences,
+    overallFeedback: [
+      { from: 0, to: 49, feedback: 'Escucha de nuevo con calma y revisa las palabras que no hayas entendido.' },
+      { from: 50, to: 79, feedback: '¡Buen trabajo! Repasa las tildes y los pequeños errores.' },
+      { from: 80, to: 100, feedback: '¡Excelente! Has entendido el dictado casi a la perfección.' },
+    ],
+    behaviour: {
+      enableRetry: true,
+      enableSolutionsButton: true,
+      enableSolutionOnCheck: false,
+      disablePause: false,
+      playButtonDelay: 0,
+      shuffleSentences: 'never',
+      scoring: { ignorePunctuation: true, zeroMistakeMode: false, typoFactor: '50' },
+      textual: { wordSeparator: ' ', overrideRTL: 'auto', autosplit: true },
+      feedbackPresentation: { customTypoDisplay: false, alternateSolution: 'first' },
+    },
+    l10n: {
+      generalFeedback: 'Has cometido @total error(es).',
+      generalFeedbackZeroMistakesMode: 'Has escrito @total palabra(s) correctamente y @typo con pequeños errores.',
+      checkAnswer: 'Comprobar',
+      submitAnswer: 'Enviar',
+      tryAgain: 'Reintentar',
+      showSolution: 'Mostrar solución',
+      audioNotSupported: 'Tu navegador no puede reproducir este audio.',
+    },
+    a11y: {
+      check: 'Comprueba las respuestas. Se marcarán como correctas, incorrectas o sin responder.',
+      showSolution: 'Muestra la solución correcta del dictado.',
+      retry: 'Vuelve a intentarlo. Borra tus respuestas y empieza de nuevo.',
+      play: 'Reproducir',
+      playSlowly: 'Reproducir despacio',
+      continuePlaying: 'Seguir reproduciendo',
+      continuePlayingSlowly: 'Seguir reproduciendo despacio',
+      triesLeft: 'Intentos restantes: @number',
+      infinite: 'ilimitados',
+      enterText: 'Escribe lo que has oído.',
+      yourResult: 'Has conseguido @score de un total de @total puntos.',
+      solution: 'Solución',
+      sentence: 'Frase',
+      item: 'Elemento',
+      correct: 'correcto',
+      wrong: 'incorrecto',
+      typo: 'pequeño error',
+      missing: 'falta',
+      added: 'sobra',
+      shouldHaveBeen: 'Debería ser',
+      wrongCapitalization: 'Mayúscula incorrecta',
+      or: 'o',
+      point: 'punto',
+      points: 'puntos',
+      period: 'punto',
+      exclamationPoint: 'signo de exclamación',
+      questionMark: 'signo de interrogación',
+      comma: 'coma',
+      singleQuote: 'comilla simple',
+      doubleQuote: 'comilla doble',
+      colon: 'dos puntos',
+      semicolon: 'punto y coma',
+      plus: 'más',
+      minus: 'menos',
+      asterisk: 'asterisco',
+      forwardSlash: 'barra inclinada',
+    },
+  };
+  const h5p = {
+    title: state.title,
+    language: 'es',
+    mainLibrary: 'H5P.Dictation',
+    embedTypes: ['iframe'],
+    preloadedDependencies: [{ machineName: 'H5P.Dictation', majorVersion: 1, minorVersion: 3 }],
+  };
+  const blob = createZip([
+    { name: 'h5p.json', data: JSON.stringify(h5p, null, 2) },
+    { name: 'content/content.json', data: JSON.stringify(content, null, 2) },
+    ...zipFiles,
+  ]);
+  const slug = normalize(state.title).toLowerCase().replaceAll(' ', '-') || 'actividad';
+  downloadBlob(blob, `${slug}-dictado-aules.h5p`);
+  if (skipped > 0) {
+    showToast(`Dictado descargado con ${usable.length} frases. Se omitieron ${skipped} sin audio o sin transcripción.`);
+  } else {
+    showToast('Paquete de dictado para Aules descargado. Usa la librería oficial H5P.Dictation, sin instalar nada.');
+  }
+}
+
 function exportH5P(): void {
   if (!isNativeEditor()) { showToast('Este tipo H5P está seleccionado como plantilla. Abre su demo para construirlo.', 'error'); return; }
   if (selectedH5PId === 'interactive-video') { exportInteractiveVideoH5P(); return; }
+  if (selectedH5PId === 'dictation') { void exportOfficialDictationH5P(); return; }
   if (!showValidation()) return;
   if (state.mode === 'wordsearch') { exportOfficialWordSearchH5P(); return; }
   exportOfficialCrosswordH5P();
@@ -1560,6 +1820,50 @@ function handleAction(action: string, element: HTMLElement): void {
     showToast('Vista previa del vídeo actualizada.');
   }
   if (action === 'update-generic') { renderPreview(); showToast('Vista previa actualizada.'); }
+  if (action === 'add-dictation-sentence') {
+    dictationState.sentences.push({ id: dictationState.nextId++, text: '', description: '', audio: null, slow: null });
+    dictationState.checked = false;
+    syncCatalogMode();
+    renderPreview();
+    const fields = document.querySelectorAll<HTMLTextAreaElement>('[data-dictation-text]');
+    fields[fields.length - 1]?.focus();
+  }
+  if (action === 'remove-dictation-sentence') {
+    if (dictationState.sentences.length <= 1) { showToast('Mantén al menos una frase.', 'error'); return; }
+    const id = Number(element.dataset.dictationId);
+    const sentence = dictationState.sentences.find((item) => item.id === id);
+    if (sentence?.audio) URL.revokeObjectURL(sentence.audio.url);
+    if (sentence?.slow) URL.revokeObjectURL(sentence.slow.url);
+    dictationState.sentences = dictationState.sentences.filter((item) => item.id !== id);
+    dictationState.answers.delete(id);
+    dictationState.checked = false;
+    syncCatalogMode();
+    renderPreview();
+  }
+  if (action === 'clear-dictation-audio') {
+    const sentence = dictationState.sentences.find((item) => item.id === Number(element.dataset.dictationId));
+    const kind = element.dataset.dictationKind === 'slow' ? 'slow' : 'audio';
+    if (sentence?.[kind]) {
+      URL.revokeObjectURL(sentence[kind]!.url);
+      sentence[kind] = null;
+      dictationState.checked = false;
+      syncCatalogMode();
+      renderPreview();
+    }
+  }
+  if (action === 'update-dictation') {
+    renderPreview();
+    showToast('Vista previa del dictado actualizada.');
+  }
+  if (action === 'check-dictation') {
+    dictationState.checked = true;
+    renderPreview();
+  }
+  if (action === 'reset-dictation') {
+    dictationState.answers.clear();
+    dictationState.checked = false;
+    renderPreview();
+  }
   if (action === 'download-selected') downloadSelectedActivity();
   if (action === 'animate-selected') animateSelected();
   if (action === 'export-h5p') exportH5P();
@@ -1656,21 +1960,41 @@ function bindEvents(): void {
     if (actionElement?.dataset.action) handleAction(actionElement.dataset.action, actionElement);
     const modeButton = target.closest<HTMLButtonElement>('[data-mode]');
     if (modeButton?.dataset.mode) {
+      const previousMode = state.mode;
       state.mode = modeButton.dataset.mode as Mode;
-      selectedH5PId = state.mode === 'wordsearch' ? 'find-the-words' : 'crossword';
+      if (!state.instructions.trim() || state.instructions === defaultInstructions[previousMode]) {
+        state.instructions = defaultInstructions[state.mode];
+        const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
+        if (instructionsInput) instructionsInput.value = state.instructions;
+      }
+      selectedH5PId = state.mode === 'wordsearch' ? 'find-the-words' : state.mode === 'crossword' ? 'crossword' : 'dictation';
       document.querySelectorAll('[data-mode]').forEach((button) => button.classList.toggle('is-active', button === modeButton));
       renderCatalog();
       syncCatalogMode();
-      renderEntries();
-      generateActivity(false);
+      if (state.mode === 'dictation') {
+        renderPreview();
+      } else {
+        renderEntries();
+        generateActivity(false);
+      }
       document.querySelector('.workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     const catalogCard = target.closest<HTMLButtonElement>('[data-h5p-id]');
     if (catalogCard?.dataset.h5pId && !catalogCard.disabled) {
+      const previousMode = state.mode;
       selectedH5PId = catalogCard.dataset.h5pId;
       genericContent = '';
       if (selectedH5PId === 'crossword') state.mode = 'crossword';
       if (selectedH5PId === 'find-the-words') state.mode = 'wordsearch';
+      if (selectedH5PId === 'dictation') state.mode = 'dictation';
+      if (state.mode !== previousMode && (!state.instructions.trim() || state.instructions === defaultInstructions[previousMode])) {
+        state.instructions = defaultInstructions[state.mode];
+        const instructionsInput = document.querySelector<HTMLTextAreaElement>('#activity-instructions');
+        if (instructionsInput) instructionsInput.value = state.instructions;
+      }
+      if (selectedH5PId === 'crossword' || selectedH5PId === 'find-the-words' || selectedH5PId === 'dictation') {
+        document.querySelectorAll('[data-mode]').forEach((button) => button.classList.toggle('is-active', (button as HTMLElement).dataset.mode === state.mode));
+      }
       renderCatalog();
       syncCatalogMode();
       renderPreview();
@@ -1746,6 +2070,19 @@ function bindEvents(): void {
     if (target.matches('[data-generic-content]')) { genericContent = target.value; renderPreview(); }
     if (target.matches('[data-video-title]')) { state.title = target.value; renderPreview(); }
     if (target.matches('[data-video-instructions]')) { state.instructions = target.value; renderPreview(); }
+    if (target.matches('[data-dictation-title]')) { state.title = target.value; renderPreview(); }
+    if (target.matches('[data-dictation-instructions]')) { state.instructions = target.value; renderPreview(); }
+    if (target.matches('[data-dictation-text]')) {
+      const sentence = dictationState.sentences.find((item) => item.id === Number(target.dataset.dictationText));
+      if (sentence) { sentence.text = target.value; dictationState.checked = false; }
+    }
+    if (target.matches('[data-dictation-description]')) {
+      const sentence = dictationState.sentences.find((item) => item.id === Number(target.dataset.dictationDescription));
+      if (sentence) sentence.description = target.value;
+    }
+    if (target.matches('[data-dictation-answer]')) {
+      dictationState.answers.set(Number(target.dataset.dictationAnswer), target.value);
+    }
     if (target.matches('[data-video-url]')) { videoState.url = target.value; renderPreview(); }
     if (target.matches('[data-video-field]')) {
       const item = videoState.interactions.find((entry) => entry.id === Number(target.dataset.videoId));
@@ -1781,8 +2118,32 @@ function bindEvents(): void {
   });
 
   document.addEventListener('change', (event) => {
-    const target = event.target as HTMLSelectElement;
+    const target = event.target as HTMLInputElement | HTMLSelectElement;
     if (target.matches('[data-catalog-group]')) { catalogGroup = target.value as H5PGroup | 'all'; renderCatalog(); }
+    if (target.matches('[data-dictation-audio]')) {
+      const input = target as HTMLInputElement;
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.type && !file.type.startsWith('audio/')) {
+        showToast('El archivo debe ser de audio (MP3, M4A, OGG o WAV).', 'error');
+        input.value = '';
+        return;
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        showToast('El audio supera los 25 MB. Usa un archivo más pequeño.', 'error');
+        input.value = '';
+        return;
+      }
+      const sentence = dictationState.sentences.find((item) => item.id === Number(input.dataset.dictationAudio));
+      const kind = input.dataset.dictationKind === 'slow' ? 'slow' : 'audio';
+      if (sentence) {
+        if (sentence[kind]) URL.revokeObjectURL(sentence[kind]!.url);
+        sentence[kind] = { file, url: URL.createObjectURL(file) };
+        dictationState.checked = false;
+        syncCatalogMode();
+        renderPreview();
+      }
+    }
   });
 
   $('#grid-size').addEventListener('change', (event) => {
