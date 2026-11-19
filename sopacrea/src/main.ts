@@ -155,6 +155,38 @@ const escapeHtml = (value: string): string => value
   .replaceAll('>', '&gt;')
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#039;');
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  let atFieldStart = true;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"' && atFieldStart) {
+        inQuotes = true; atFieldStart = false;
+      } else if (c === ',') {
+        row.push(field); field = ''; atFieldStart = true;
+      } else if (c === '\n') {
+        row.push(field); rows.push(row); row = []; field = ''; atFieldStart = true;
+      } else if (c === '\r') {
+        // ignore CR
+      } else {
+        field += c; atFieldStart = false;
+      }
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((v) => v.trim() !== ''));
+}
 
 const capitalize = (value: string): string => value.charAt(0) + value.slice(1).toLowerCase();
 const defaultInstructions: Record<Mode, string> = {
@@ -398,6 +430,9 @@ function renderFlashcardsEditor(): string {
     <label class="field-label">Instrucciones<textarea data-flashcard-instructions rows="2" maxlength="140">${escapeHtml(state.instructions)}</textarea></label>
     <div class="content-heading"><div><span class="section-kicker">CONTENIDO</span><h3>Tarjetas</h3></div><span class="counter">${flashcardState.cards.length} ${flashcardState.cards.length === 1 ? 'tarjeta' : 'tarjetas'}</span></div>
     ${items}
+    <div class="flashcard-import">
+      <label class="dictation-file"><span class="dictation-file-icon">CSV</span><span class="dictation-file-copy"><strong>Importar desde CSV</strong><small>Pregunta,Respuesta (una por línea)</small></span><input type="file" accept=".csv,text/csv" data-flashcard-csv /></label>
+    </div>
     <button class="add-entry" data-action="add-flashcard"><span>+</span> Añadir tarjeta</button>
     <div class="generic-editor-actions"><button class="button button-dark" data-action="update-flashcards"><span class="icon">↻</span> Actualizar vista previa</button></div>
   </div>`;
@@ -2590,6 +2625,35 @@ function bindEvents(): void {
         syncCatalogMode();
         renderPreview();
       }
+    }
+    if (target.matches('[data-flashcard-csv]')) {
+      const input = target as HTMLInputElement;
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || '');
+        const rows = parseCsv(text);
+        if (!rows.length) { showToast('El CSV esta vacio o no se pudo leer.', 'error'); input.value = ''; return; }
+        flashcardState.cards = [];
+        let nextId = 1;
+        for (const row of rows) {
+          const q = (row[0] || '').trim();
+          const a = (row[1] || '').trim();
+          if (!q && !a) continue;
+          flashcardState.cards.push({ id: nextId++, text: q, answer: a, image: null, tipFront: '', tipBack: '' });
+        }
+        flashcardState.nextId = nextId;
+        if (!flashcardState.cards.length) {
+          flashcardState.cards.push({ id: 1, text: '', answer: '', image: null, tipFront: '', tipBack: '' });
+          flashcardState.nextId = 2;
+        }
+        syncCatalogMode();
+        renderPreview();
+        showToast('Importadas ' + flashcardState.cards.length + ' tarjetas desde CSV.');
+        input.value = '';
+      };
+      reader.readAsText(file, 'utf-8');
     }
   });
 
