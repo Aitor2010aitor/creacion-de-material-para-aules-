@@ -97,6 +97,7 @@ h1 em { font-family: 'Fraunces', serif; font-weight: 500; color: var(--coral); l
 .catalog-status { display:inline-block; margin-top:8px; padding:2px 7px; border-radius:20px; font:8px 'DM Mono', monospace; letter-spacing:.4px; }
 .catalog-status.is-ready { background:#e8f2e9; color:var(--teal); }
 .catalog-status.is-construction { background:#f0e3d6; color:#9a5b33; }
+.catalog-status.is-beta { background:#e8ecf7; color:#3b5bdb; }
 .mode-tab.is-construction { opacity:.65; cursor:not-allowed; }
 .mode-tab.is-construction:hover { color:var(--muted); }
 .tab-status { margin-left:auto; padding:2px 7px; border-radius:20px; background:#f0e3d6; color:#9a5b33; font:8px 'DM Mono', monospace; letter-spacing:.4px; }
