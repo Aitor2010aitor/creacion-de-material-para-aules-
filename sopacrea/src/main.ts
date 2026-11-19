@@ -514,7 +514,6 @@ function seedMarkup(): void {
           <button class="mode-tab" data-mode="dictation" role="tab"><span class="tab-icon">♫</span><span><strong>Dictado</strong><small>Escucha, escribe y corrige</small></span><span class="tab-arrow">↗</span></button>
           <button class="mode-tab" data-mode="flashcards" role="tab"><span class="tab-icon">TD</span><span><strong>Tarjeta didáctica</strong><small>Palabra, imagen y audio</small></span><span class="tab-arrow">→</span></button>
           <button class="mode-tab" data-mode="quiz" role="tab"><span class="tab-icon">?</span><span><strong>Cuestionario</strong><small>Preguntas y respuestas</small></span><span class="tab-arrow">→</span></button>
-          <button class="mode-tab" data-mode="quiz" role="tab"><span class="tab-icon">?</span><span><strong>Cuestionario</strong><small>Preguntas y respuestas</small></span><span class="tab-arrow">→</span></button>
         </div>
 
         <section class="catalog-section">
